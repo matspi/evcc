@@ -7,6 +7,7 @@ import (
 
 	"github.com/evcc-io/evcc/api"
 	"github.com/evcc-io/evcc/util"
+	"github.com/evcc-io/evcc/util/logx"
 	"github.com/evcc-io/evcc/vehicle/bluelink"
 )
 
@@ -41,7 +42,7 @@ func NewKiaFromConfig(other map[string]interface{}) (api.Vehicle, error) {
 		return nil, api.ErrMissingCredentials
 	}
 
-	log := util.NewLogger("kia").Redact(cc.User, cc.Password, cc.VIN)
+	log := logx.Redact(logx.NewModule("kia"), cc.User, cc.Password, cc.VIN)
 
 	settings := bluelink.Config{
 		URI:               "https://prd.eu-ccapi.kia.com:8080",
@@ -71,7 +72,7 @@ func NewKiaFromConfig(other map[string]interface{}) (api.Vehicle, error) {
 	var vehicle bluelink.Vehicle
 	if cc.VIN == "" && len(vehicles) == 1 {
 		vehicle = vehicles[0]
-		log.DEBUG.Printf("found vehicle: %v", cc.VIN)
+		logx.Debug(log, "msg", "found vehicle", "vin", cc.VIN)
 	} else {
 		for _, v := range vehicles {
 			if v.VIN == strings.ToUpper(cc.VIN) {

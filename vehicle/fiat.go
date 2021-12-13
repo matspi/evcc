@@ -7,6 +7,7 @@ import (
 
 	"github.com/evcc-io/evcc/api"
 	"github.com/evcc-io/evcc/util"
+	"github.com/evcc-io/evcc/util/logx"
 	"github.com/evcc-io/evcc/vehicle/fiat"
 )
 
@@ -46,7 +47,7 @@ func NewFiatFromConfig(other map[string]interface{}) (api.Vehicle, error) {
 		embed: &cc.embed,
 	}
 
-	log := util.NewLogger("fiat").Redact(cc.User, cc.Password, cc.VIN)
+	log := logx.Redact(logx.NewModule("fiat"), cc.User, cc.Password, cc.VIN)
 	identity := fiat.NewIdentity(log, cc.User, cc.Password)
 
 	err := identity.Login()
@@ -59,7 +60,7 @@ func NewFiatFromConfig(other map[string]interface{}) (api.Vehicle, error) {
 	if cc.VIN == "" {
 		cc.VIN, err = findVehicle(api.Vehicles())
 		if err == nil {
-			log.DEBUG.Printf("found vehicle: %v", cc.VIN)
+			logx.Debug(log, "msg", "found vehicle", "vin", cc.VIN)
 		}
 	}
 

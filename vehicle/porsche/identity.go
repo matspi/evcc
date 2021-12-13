@@ -8,9 +8,10 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/evcc-io/evcc/util"
+	"github.com/evcc-io/evcc/util/logx"
 	"github.com/evcc-io/evcc/util/oauth"
 	"github.com/evcc-io/evcc/util/request"
+
 	cv "github.com/nirasan/go-oauth-pkce-code-verifier"
 	"golang.org/x/net/publicsuffix"
 	"golang.org/x/oauth2"
@@ -27,13 +28,13 @@ type AccessTokens struct {
 
 // Identity is the Porsche Identity client
 type Identity struct {
-	log *util.Logger
+	log logx.Logger
 	*request.Helper
 	user, password string
 }
 
 // NewIdentity creates Porsche identity
-func NewIdentity(log *util.Logger, user, password string) *Identity {
+func NewIdentity(log logx.Logger, user, password string) *Identity {
 	v := &Identity{
 		log:      log,
 		Helper:   request.NewHelper(log),
@@ -215,7 +216,7 @@ func (v *Identity) FindVehicle(accessTokens AccessTokens, vin string) (string, e
 		return "", errors.New("vin not found")
 	}
 
-	v.log.DEBUG.Printf("found vehicle: %v", foundVehicle.VIN)
+	logx.Debug(v.log, "msg", "found vehicle", "vin", foundVehicle.VIN)
 
 	// check if vehicle is paired
 	uri := fmt.Sprintf("%s/%s/pairing", vehiclesURL, foundVehicle.VIN)

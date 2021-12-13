@@ -6,6 +6,7 @@ import (
 
 	"github.com/evcc-io/evcc/api"
 	"github.com/evcc-io/evcc/util"
+	"github.com/evcc-io/evcc/util/logx"
 	"github.com/evcc-io/evcc/vehicle/bmw"
 )
 
@@ -52,7 +53,7 @@ func NewBMWMiniFromConfig(brand string, other map[string]interface{}) (api.Vehic
 		embed: &cc.embed,
 	}
 
-	log := util.NewLogger(brand).Redact(cc.User, cc.Password, cc.VIN)
+	log := logx.Redact(logx.NewModule(brand), cc.User, cc.Password, cc.VIN)
 	identity := bmw.NewIdentity(log)
 
 	if err := identity.Login(cc.User, cc.Password); err != nil {
@@ -65,7 +66,7 @@ func NewBMWMiniFromConfig(brand string, other map[string]interface{}) (api.Vehic
 	if cc.VIN == "" {
 		cc.VIN, err = findVehicle(api.Vehicles())
 		if err == nil {
-			log.DEBUG.Printf("found vehicle: %v", cc.VIN)
+			logx.Debug(log, "msg", "found vehicle", "vin", cc.VIN)
 		}
 	}
 

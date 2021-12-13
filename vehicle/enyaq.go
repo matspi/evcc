@@ -7,6 +7,7 @@ import (
 
 	"github.com/evcc-io/evcc/api"
 	"github.com/evcc-io/evcc/util"
+	"github.com/evcc-io/evcc/util/logx"
 	"github.com/evcc-io/evcc/util/request"
 	"github.com/evcc-io/evcc/vehicle/skoda"
 )
@@ -44,7 +45,7 @@ func NewEnyaqFromConfig(other map[string]interface{}) (api.Vehicle, error) {
 	}
 
 	var err error
-	log := util.NewLogger("enyaq").Redact(cc.User, cc.Password, cc.VIN)
+	log := logx.Redact(logx.NewModule("enyaq"), cc.User, cc.Password, cc.VIN)
 
 	if cc.VIN == "" {
 		ts := skoda.NewIdentity(log, skoda.AuthParams, cc.User, cc.Password)
@@ -57,7 +58,7 @@ func NewEnyaqFromConfig(other map[string]interface{}) (api.Vehicle, error) {
 
 		cc.VIN, err = findVehicle(api.Vehicles())
 		if err == nil {
-			log.DEBUG.Printf("found vehicle: %v", cc.VIN)
+			logx.Debug(log, "msg", "found vehicle", "vin", cc.VIN)
 		}
 	}
 
