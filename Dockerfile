@@ -1,7 +1,7 @@
 # STEP 1 build ui
 FROM node:14-alpine as node
 
-RUN apk update && apk add --no-cache make
+RUN apk update && apk add --no-cache make python3 py3-pip g++
 
 WORKDIR /build
 
@@ -23,7 +23,7 @@ FROM golang:1.16-alpine as builder
 # Install git + SSL ca certificates.
 # Git is required for fetching the dependencies.
 # Ca-certificates is required to call HTTPS endpoints.
-RUN apk update && apk add --no-cache git ca-certificates tzdata alpine-sdk && update-ca-certificates
+RUN apk update && apk add --no-cache git ca-certificates tzdata alpine-sdk && update-ca-certificates make g++ python3
 
 WORKDIR /build
 
