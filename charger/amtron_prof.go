@@ -69,7 +69,6 @@ func (wb *AmtronProfessional) Status() (api.ChargeStatus, error) {
 	case 2:
 		return api.StatusB, nil
 	case 3:
-		// TODO check C1 -> B?
 		return api.StatusC, nil
 	case 4:
 		return api.StatusD, nil
@@ -78,7 +77,7 @@ func (wb *AmtronProfessional) Status() (api.ChargeStatus, error) {
 	case 6:
 		return api.StatusF, nil
 	default:
-		return api.StatusNone, fmt.Errorf("invalid status: %0x", b)
+		return api.StatusNone, fmt.Errorf("invalid status: %d", b)
 	}
 }
 
