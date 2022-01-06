@@ -20,6 +20,7 @@ const (
 	amtronRegPower      = 206
 	amtronRegStatus     = 122
 	amtronRegAmpsConfig = 1000
+	amtronRegEVCCID     = 741
 )
 
 func init() {
@@ -184,4 +185,26 @@ func (wb *AmtronProfessional) CurrentPower() (float64, error) {
 	}
 
 	return float64(l1Power + l2Power + l3Power), err
+}
+
+var _ api.Identifier = (*AmtronProfessional)(nil)
+
+func (wb *AmtronProfessional) Identify() (string, error) {
+	b1, err := wb.conn.ReadHoldingRegisters(amtronRegEVCCID, 2)
+	if err != nil {
+		return "", err
+	}
+	s1 := string(b1[:])
+	b2, err := wb.conn.ReadHoldingRegisters(amtronRegEVCCID+2, 2)
+	if err != nil {
+		return "", err
+	}
+	s2 := string(b2[:])
+	b3, err := wb.conn.ReadHoldingRegisters(amtronRegEVCCID+4, 2)
+	if err != nil {
+		return "", err
+	}
+	s3 := string(b3[:])
+
+	return (s1 + s2 + s3), err
 }
