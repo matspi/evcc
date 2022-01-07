@@ -1,6 +1,7 @@
 package charger
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 
@@ -128,7 +129,7 @@ func (wb *AmtronProfessional) TotalEnergy() (float64, error) {
 		return 0, err
 	}
 	var l2Energy = toUint32(l2)
-	if l2Energy == 0xffffffff {
+	if bytes.Equal(l2, []byte{0xff, 0xff, 0xff, 0xff}) {
 		l2Energy = 0
 	}
 
@@ -137,7 +138,7 @@ func (wb *AmtronProfessional) TotalEnergy() (float64, error) {
 		return 0, err
 	}
 	var l3Energy = toUint32(l3)
-	if l3Energy == 0xffffffff {
+	if bytes.Equal(l3, []byte{0xff, 0xff, 0xff, 0xff}) {
 		l3Energy = 0
 	}
 
