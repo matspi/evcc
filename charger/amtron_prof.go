@@ -118,19 +118,27 @@ var _ api.MeterEnergy = (*AmtronProfessional)(nil)
 // TotalEnergy implements the api.MeterEnergy interface
 func (wb *AmtronProfessional) TotalEnergy() (float64, error) {
 	l1, err := wb.conn.ReadHoldingRegisters(amtronRegEnergy, 2)
+	if err != nil {
+		return 0, err
+	}
 	var l1Energy = toUint32(l1)
-	if err != nil {
-		return 0, err
-	}
+
 	l2, err := wb.conn.ReadHoldingRegisters(amtronRegEnergy+2, 2)
-	var l2Energy = toUint32(l2)
 	if err != nil {
 		return 0, err
 	}
+	var l2Energy = toUint32(l2)
+	if l2Energy == 0xffffffff {
+		l2Energy = 0
+	}
+
 	l3, err := wb.conn.ReadHoldingRegisters(amtronRegEnergy+4, 2)
-	var l3Energy = toUint32(l3)
 	if err != nil {
 		return 0, err
+	}
+	var l3Energy = toUint32(l3)
+	if l3Energy == 0xffffffff {
+		l3Energy = 0
 	}
 
 	return float64(l1Energy + l2Energy + l3Energy), err
