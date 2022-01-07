@@ -96,14 +96,12 @@ func (wb *AmtronProfessional) Enabled() (bool, error) {
 
 // Enable implements the api.Charger interface
 func (wb *AmtronProfessional) Enable(enable bool) error {
-	var b uint16
+	var err error
 	if !enable {
-		b = 0
+		err = wb.MaxCurrent(0)
 	} else {
-		b = 6
+		err = wb.MaxCurrent(16)
 	}
-
-	_, err := wb.conn.WriteSingleRegister(amtronRegAmpsConfig, b)
 
 	return err
 }
@@ -169,42 +167,22 @@ var _ api.Meter = (*AmtronProfessional)(nil)
 
 func (wb *AmtronProfessional) CurrentPower() (float64, error) {
 	l1, err := wb.conn.ReadHoldingRegisters(amtronRegPower, 2)
+	if err != nil {
+		return 0, err
+	}
 	var l1Power uint32 = toUint32(l1)
-	if err != nil {
-		return 0, err
-	}
+
 	l2, err := wb.conn.ReadHoldingRegisters(amtronRegPower+2, 2)
+	if err != nil {
+		return 0, err
+	}
 	var l2Power uint32 = toUint32(l2)
-	if err != nil {
-		return 0, err
-	}
+
 	l3, err := wb.conn.ReadHoldingRegisters(amtronRegPower+4, 2)
-	var l3Power uint32 = toUint32(l3)
 	if err != nil {
 		return 0, err
 	}
+	var l3Power uint32 = toUint32(l3)
 
 	return float64(l1Power + l2Power + l3Power), err
-}
-
-var _ api.Identifier = (*AmtronProfessional)(nil)
-
-func (wb *AmtronProfessional) Identify() (string, error) {
-	b1, err := wb.conn.ReadHoldingRegisters(amtronRegEVCCID, 2)
-	if err != nil {
-		return "", err
-	}
-	s1 := string(b1[:])
-	b2, err := wb.conn.ReadHoldingRegisters(amtronRegEVCCID+2, 2)
-	if err != nil {
-		return "", err
-	}
-	s2 := string(b2[:])
-	b3, err := wb.conn.ReadHoldingRegisters(amtronRegEVCCID+4, 2)
-	if err != nil {
-		return "", err
-	}
-	s3 := string(b3[:])
-
-	return (s1 + s2 + s3), err
 }
