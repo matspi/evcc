@@ -142,7 +142,7 @@ func (wb *AmtronProfessional) TotalEnergy() (float64, error) {
 		l3Energy = 0
 	}
 
-	return float64(l1Energy + l2Energy + l3Energy), err
+	return float64(l1Energy+l2Energy+l3Energy) / 1e3, err
 }
 
 func toUint32(b []byte) uint32 {
