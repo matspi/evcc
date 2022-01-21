@@ -146,6 +146,9 @@ func (wb *AmtronProfessional) TotalEnergy() (float64, error) {
 }
 
 func toUint32(b []byte) uint32 {
+	if(len(b) < 4) {
+		return 0
+	}
 	return uint32(binary.LittleEndian.Uint16(b)*256) + uint32(binary.BigEndian.Uint16(b[2:]))
 }
 
