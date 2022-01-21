@@ -81,8 +81,9 @@ publish-latest:
 publish-latest-ci:
 	@echo Version: $(VERSION) $(BUILD_DATE)
 	seihon publish --dry-run=false --template docker/ci.Dockerfile --base-runtime-image alpine:$(ALPINE_VERSION) \
-	   --image-name $(DOCKER_IMAGE) -v "latest" --targets=$(TARGETS)
+	   --image-name $(DOCKER_IMAGE) -v "nightly" --targets=$(TARGETS)
 
+# TODO: -v "0" needs to be replaced by MAJOR, MINOR and PATCH as soon as we made it to semantic versioning
 publish-images:
 	@echo Version: $(VERSION) $(BUILD_DATE)
 	seihon publish --dry-run=false --template docker/tmpl.Dockerfile --base-runtime-image alpine:$(ALPINE_VERSION) \
@@ -90,12 +91,12 @@ publish-images:
 
 # gokrazy image
 prepare-image:
-	go get github.com/gokrazy/tools/cmd/gokr-packer@latest
+	go install github.com/gokrazy/tools/cmd/gokr-packer@latest
 	mkdir -p flags/github.com/gokrazy/breakglass
 	echo "-forward=private-network" > flags/github.com/gokrazy/breakglass/flags.txt
 	mkdir -p buildflags/github.com/evcc-io/evcc
 	echo "$(BUILD_TAGS),gokrazy" > buildflags/github.com/evcc-io/evcc/buildflags.txt
-	echo "-ldflags=$(LD_FLAGS)" >> buildflags/github.com/evcc-io/evcc/buildflags.txt
+	echo "$(BUILD_ARGS)" >> buildflags/github.com/evcc-io/evcc/buildflags.txt
 
 image:
 	gokr-packer -overwrite=$(IMAGE_FILE) -target_storage_bytes=1258299392 $(IMAGE_OPTIONS)
