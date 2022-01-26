@@ -12,7 +12,9 @@ import (
 
 // AmtronProfessional Professional charger implementation
 type AmtronProfessional struct {
-	conn *modbus.Connection
+	conn    *modbus.Connection
+	enabled bool
+	current int64
 }
 
 const (
@@ -52,7 +54,9 @@ func NewAmtronProfessional(uri, device, comset string, baudrate int, slaveID uin
 	conn.Logger(log.TRACE)
 
 	wb := &AmtronProfessional{
-		conn: conn,
+		conn:    conn,
+		enabled: true,
+		current: 6,
 	}
 
 	return wb, err
@@ -85,14 +89,7 @@ func (wb *AmtronProfessional) Status() (api.ChargeStatus, error) {
 
 // Enabled implements the api.Charger interface
 func (wb *AmtronProfessional) Enabled() (bool, error) {
-	b, err := wb.conn.ReadHoldingRegisters(amtronRegAmpsConfig, 1)
-	if err != nil {
-		return false, err
-	}
-
-	var value uint16 = binary.LittleEndian.Uint16(b)
-
-	return value > 0, nil
+	return wb.enabled, nil
 }
 
 // Enable implements the api.Charger interface
@@ -100,8 +97,10 @@ func (wb *AmtronProfessional) Enable(enable bool) error {
 	var err error
 	if !enable {
 		err = wb.MaxCurrent(0)
+		wb.enabled = false
 	} else {
-		err = wb.MaxCurrent(16)
+		err = wb.MaxCurrent(wb.current)
+		wb.enabled = true
 	}
 
 	return err
@@ -109,9 +108,13 @@ func (wb *AmtronProfessional) Enable(enable bool) error {
 
 // MaxCurrent implements the api.Charger interface
 func (wb *AmtronProfessional) MaxCurrent(current int64) error {
-	_, err := wb.conn.WriteSingleRegister(amtronRegAmpsConfig, uint16(current))
+	wb.current = current
+	if wb.enabled {
+		_, err := wb.conn.WriteSingleRegister(amtronRegAmpsConfig, uint16(current))
+		return err
+	}
 
-	return err
+	return nil
 }
 
 var _ api.MeterEnergy = (*AmtronProfessional)(nil)
