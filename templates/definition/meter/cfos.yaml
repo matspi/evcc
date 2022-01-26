@@ -1,7 +1,10 @@
-template: cfos-meter
-description: cFos PowerBrain Meter
-requirements:
-  sponsorship: true
+template: cfos
+products:
+- brand: cFos
+  description:
+    generic: PowerBrain Meter
+requirements: 
+  evcc: ["sponsorship"]
 params:
 - name: usage
   choice: [ "charge" ]

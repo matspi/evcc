@@ -77,13 +77,16 @@ func New(conf map[string]interface{}, site site.API, httpd *server.HTTPd) (*SEMP
 
 	var did []byte
 	if cc.DeviceID == "" {
-		did, err = uniqueDeviceID()
+		if did, err = UniqueDeviceID(); err != nil {
+			return nil, fmt.Errorf("creating device id: %w", err)
+		}
 	} else {
-		did, err = hex.DecodeString(cc.DeviceID)
-
+		if did, err = hex.DecodeString(cc.DeviceID); err != nil {
+			return nil, fmt.Errorf("device id: %w", err)
+		}
 	}
 
-	if err != nil || len(did) != 6 {
+	if len(did) != 6 {
 		return nil, fmt.Errorf("invalid device id: %v", cc.DeviceID)
 	}
 
@@ -335,7 +338,7 @@ func (s *SEMP) serialNumber(id int) string {
 }
 
 // uniqueDeviceID creates a 6-bytes base device id from machine id
-func uniqueDeviceID() ([]byte, error) {
+func UniqueDeviceID() ([]byte, error) {
 	bytes := 6
 
 	mid, err := machineid.ProtectedID("evcc-semp")

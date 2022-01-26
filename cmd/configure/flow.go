@@ -53,7 +53,7 @@ func (c *CmdConfigure) configureDeviceGuidedSetup() {
 		// we only ask for the configuration for the first usage
 		deviceCategory = supportedDeviceCategories[0]
 
-		values = c.processConfig(templateItem.Params, deviceCategory)
+		values = c.processConfig(templateItem, deviceCategory)
 
 		deviceItem, err = c.processDeviceValues(values, templateItem, deviceItem, deviceCategory)
 		if err != nil {
@@ -72,6 +72,7 @@ func (c *CmdConfigure) configureDeviceGuidedSetup() {
 	}
 
 	c.configuration.AddDevice(deviceItem, deviceCategory)
+	c.processDeviceCapabilities(templateItem.Capabilities)
 
 	if len(supportedDeviceCategories) > 1 {
 		for _, additionalCategory := range supportedDeviceCategories[1:] {
@@ -86,7 +87,7 @@ func (c *CmdConfigure) configureDeviceGuidedSetup() {
 	}
 
 	fmt.Println()
-	fmt.Println(templateItem.Description + " " + c.localizedString("Device_Added", nil))
+	fmt.Println(templateItem.Title() + " " + c.localizedString("Device_Added", nil))
 
 	c.configureLinkedTypes(templateItem)
 }
@@ -118,11 +119,12 @@ func (c *CmdConfigure) configureLinkedTypes(templateItem templates.Template) {
 		if len(linkedTemplateItem.Params) == 0 || linkedTemplate.Usage == "" {
 			break
 		}
+		linkedTemplateItem.SetCombinedTitle()
 
 		category := DeviceCategory(linkedTemplate.Usage)
 
 		localizeMap := localizeMap{
-			"Linked":     linkedTemplateItem.Description,
+			"Linked":     linkedTemplateItem.Title(),
 			"Article":    DeviceCategories[category].article,
 			"Additional": DeviceCategories[category].additional,
 			"Category":   DeviceCategories[category].title,
@@ -148,17 +150,16 @@ func (c *CmdConfigure) configureLinkedTypes(templateItem templates.Template) {
 			}
 		}
 	}
-	fmt.Println("DONE")
 }
 
 // configureLinkedTemplate lets the user configure a device that is marked as being linked to a guided device
 // returns true if a device was added
-func (c *CmdConfigure) configureLinkedTemplate(template templates.Template, category DeviceCategory) bool {
+func (c *CmdConfigure) configureLinkedTemplate(templateItem templates.Template, category DeviceCategory) bool {
 	for ok := true; ok; {
 		deviceItem := device{}
 
-		values := c.processConfig(template.Params, category)
-		deviceItem, err := c.processDeviceValues(values, template, deviceItem, category)
+		values := c.processConfig(templateItem, category)
+		deviceItem, err := c.processDeviceValues(values, templateItem, deviceItem, category)
 		if err != nil {
 			if !errors.Is(err, c.errDeviceNotValid) {
 				fmt.Println()
@@ -171,9 +172,10 @@ func (c *CmdConfigure) configureLinkedTemplate(template templates.Template, cate
 
 		} else {
 			c.configuration.AddDevice(deviceItem, category)
+			c.processDeviceCapabilities(templateItem.Capabilities)
 
 			fmt.Println()
-			fmt.Println(template.Description + " " + c.localizedString("Device_Added", nil))
+			fmt.Println(templateItem.Title() + " " + c.localizedString("Device_Added", nil))
 			return true
 		}
 		break
@@ -182,7 +184,7 @@ func (c *CmdConfigure) configureLinkedTemplate(template templates.Template, cate
 }
 
 // configureDeviceCategory lets the user select and configure a device from a specific category
-func (c *CmdConfigure) configureDeviceCategory(deviceCategory DeviceCategory) (device, error) {
+func (c *CmdConfigure) configureDeviceCategory(deviceCategory DeviceCategory) (device, []string, error) {
 	fmt.Println()
 	fmt.Printf("- %s %s\n", c.localizedString("Device_Configure", nil), DeviceCategories[deviceCategory].title)
 
@@ -191,6 +193,7 @@ func (c *CmdConfigure) configureDeviceCategory(deviceCategory DeviceCategory) (d
 	}
 
 	var deviceDescription string
+	var capabilities []string
 
 	// repeat until the device is added or the user chooses to continue without adding a device
 	for ok := true; ok; {
@@ -198,11 +201,12 @@ func (c *CmdConfigure) configureDeviceCategory(deviceCategory DeviceCategory) (d
 
 		templateItem, err := c.processDeviceSelection(deviceCategory)
 		if err != nil {
-			return device, c.errItemNotPresent
+			return device, capabilities, c.errItemNotPresent
 		}
 
-		deviceDescription = templateItem.Description
-		values := c.processConfig(templateItem.Params, deviceCategory)
+		deviceDescription = templateItem.Title()
+		capabilities = templateItem.Capabilities
+		values := c.processConfig(templateItem, deviceCategory)
 
 		device, err = c.processDeviceValues(values, templateItem, device, deviceCategory)
 		if err != nil {
@@ -213,7 +217,7 @@ func (c *CmdConfigure) configureDeviceCategory(deviceCategory DeviceCategory) (d
 			// ask if the user wants to add the
 			fmt.Println()
 			if !c.askConfigFailureNextStep() {
-				return device, err
+				return device, capabilities, err
 			}
 			continue
 		}
@@ -222,6 +226,7 @@ func (c *CmdConfigure) configureDeviceCategory(deviceCategory DeviceCategory) (d
 	}
 
 	c.configuration.AddDevice(device, deviceCategory)
+	c.processDeviceCapabilities(capabilities)
 
 	var deviceTitle string
 	if device.Title != "" {
@@ -231,5 +236,5 @@ func (c *CmdConfigure) configureDeviceCategory(deviceCategory DeviceCategory) (d
 	fmt.Println()
 	fmt.Println(deviceDescription + deviceTitle + " " + c.localizedString("Device_Added", nil))
 
-	return device, nil
+	return device, capabilities, nil
 }

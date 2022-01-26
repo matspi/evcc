@@ -1,7 +1,10 @@
-template: cfos_charger
-description: cFos PowerBrain
-requirements:
-  sponsorship: true
+template: cfos
+products:
+- brand: cFos
+  description:
+    generic: PowerBrain
+requirements: 
+  evcc: ["sponsorship"]
 params:
 - name: host
   required: true

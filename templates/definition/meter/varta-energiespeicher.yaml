@@ -1,5 +1,8 @@
 template: varta-energiespeicher
-description: VARTA Energiespeicher
+products:
+- brand: VARTA
+  description:
+    generic: Energiespeicher
 guidedsetup:
   enable: true
 params:

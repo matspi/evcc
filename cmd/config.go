@@ -2,6 +2,9 @@ package cmd
 
 import (
 	"fmt"
+	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/dustin/go-humanize"
@@ -11,8 +14,10 @@ import (
 	"github.com/evcc-io/evcc/provider/mqtt"
 	"github.com/evcc-io/evcc/push"
 	"github.com/evcc-io/evcc/server"
+	"github.com/evcc-io/evcc/util"
 	"github.com/evcc-io/evcc/vehicle"
 	"github.com/evcc-io/evcc/vehicle/wrapper"
+	"github.com/gorilla/handlers"
 )
 
 type config struct {
@@ -76,6 +81,7 @@ type ConfigProvider struct {
 	chargers map[string]api.Charger
 	vehicles map[string]api.Vehicle
 	visited  map[string]bool
+	auth     *util.AuthCollection
 }
 
 func (cp *ConfigProvider) TrackVisitors() {
@@ -195,4 +201,63 @@ func (cp *ConfigProvider) configureVehicles(conf config) error {
 	}
 
 	return nil
+}
+
+func canonicalName(s string) string {
+	return strings.ToLower(strings.ReplaceAll(s, " ", "_"))
+}
+
+// webControl handles routing for devices. For now only api.ProviderLogin related routes
+func (cp *ConfigProvider) webControl(httpd *server.HTTPd, paramC chan<- util.Param) {
+	router := httpd.Router()
+
+	auth := router.PathPrefix("/auth").Subrouter()
+	auth.Use(handlers.CompressHandler)
+	auth.Use(handlers.CORS(
+		handlers.AllowedHeaders([]string{"Content-Type"}),
+	))
+
+	// initialize
+	cp.auth = util.NewAuthCollection(paramC)
+
+	for _, v := range cp.vehicles {
+		if provider, ok := v.(api.ProviderLogin); ok {
+			title := url.QueryEscape(canonicalName(v.Title()))
+			basePath := fmt.Sprintf("vehicles/%s", title)
+
+			// TODO make evccURI configurable, add warnings for any network/ localhost
+			evccURI := fmt.Sprintf("http://%s", httpd.Addr)
+			baseURI := fmt.Sprintf("%s/auth/%s", evccURI, basePath)
+
+			// register vehicle
+			ap := cp.auth.Register(v.Title(), baseURI)
+
+			redirectURI := fmt.Sprintf("%s/callback", baseURI)
+			provider.SetCallbackParams(redirectURI, ap.Handler())
+			log.INFO.Printf("ensure the oauth client redirect/callback is configured for %s: %s", v.Title(), redirectURI)
+
+			// TODO how to handle multiple vehicles of the same type
+			//
+			// problems, thoughts and ideas:
+			// conflicting callbacks!
+			// - some unique part has to be added.
+			// - or a general callback handler and the specific vehicle is transported in the state?
+			//   - callback handler needs an option to set the token at the right vehicle and use the right code exchange
+
+			auth.
+				Methods(http.MethodGet).
+				Path(fmt.Sprintf("/%s/callback", basePath)).
+				HandlerFunc(provider.CallbackHandler(evccURI))
+			auth.
+				Methods(http.MethodPost).
+				Path(fmt.Sprintf("/%s/login", basePath)).
+				HandlerFunc(provider.LoginHandler())
+			auth.
+				Methods(http.MethodPost).
+				Path(fmt.Sprintf("/%s/logout", basePath)).
+				HandlerFunc(provider.LogoutHandler())
+		}
+	}
+
+	cp.auth.Publish()
 }

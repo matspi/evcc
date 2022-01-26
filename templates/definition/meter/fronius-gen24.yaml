@@ -1,5 +1,8 @@
 template: fronius-gen24
-description: Fronius Symo GEN24 Plus
+products:
+- brand: Fronius
+  description:
+    generic: Symo GEN24 Plus
 guidedsetup:
   enable: true
 params:

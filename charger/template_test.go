@@ -26,6 +26,7 @@ var acceptable = []string{
 	"sponsorship required, see https://github.com/evcc-io/evcc#sponsorship",
 	"eebus not configured",
 	"unexpected status: 400", // easee
+	"Get \"http://192.0.2.2/getParameters\": context deadline exceeded", // evsewifi
 }
 
 func TestChargerTemplates(t *testing.T) {
@@ -35,7 +36,7 @@ func TestChargerTemplates(t *testing.T) {
 		tmpl := tmpl
 
 		// set default values for all params
-		values := tmpl.Defaults(true)
+		values := tmpl.Defaults(templates.TemplateRenderModeUnitTest)
 
 		// set the template value which is needed for rendering
 		values["template"] = tmpl.Template
@@ -43,25 +44,28 @@ func TestChargerTemplates(t *testing.T) {
 		// set modbus default test values
 		if values[templates.ParamModbus] != nil {
 			modbusChoices := tmpl.ModbusChoices()
+			// we only test one modbus setup
 			if funk.ContainsString(modbusChoices, templates.ModbusChoiceTCPIP) {
-				values[templates.ModbusTCPIP] = true
+				values[templates.ModbusKeyTCPIP] = true
 			} else {
-				values[templates.ModbusRS485TCPIP] = true
+				values[templates.ModbusKeyRS485TCPIP] = true
 			}
 		}
 
 		t.Run(tmpl.Template, func(t *testing.T) {
 			t.Parallel()
 
-			b, values, err := tmpl.RenderResult(true, values)
+			b, values, err := tmpl.RenderResult(templates.TemplateRenderModeUnitTest, values)
 			if err != nil {
-				t.Logf("%s: %s", tmpl.Template, b)
+				t.Logf("Template: %s", tmpl.Template)
+				t.Logf("%s", string(b))
 				t.Error(err)
 			}
 
 			_, err = NewFromConfig("template", values)
 			if err != nil && !test.Acceptable(err, acceptable) {
-				t.Logf("%s", tmpl.Template)
+				t.Logf("Template: %s", tmpl.Template)
+				t.Logf("%s", string(b))
 				t.Error(err)
 			}
 		})

@@ -63,16 +63,16 @@ func (c *CmdConfigure) askSelection(message string, items []string) (error, stri
 
 // selectItem selects item from list
 func (c *CmdConfigure) selectItem(deviceCategory DeviceCategory) templates.Template {
-	var emptyItem templates.Template
-	emptyItem.Description = c.localizedString("ItemNotPresent", nil)
+	emptyItem := templates.Template{Lang: c.lang}
+	emptyItem.SetTitle(c.localizedString("ItemNotPresent", nil))
 
 	elements := c.fetchElements(deviceCategory)
 	elements = append(elements, emptyItem)
 
 	var items []string
 	for _, item := range elements {
-		if item.Description != "" {
-			items = append(items, item.Description)
+		if item.Title() != "" {
+			items = append(items, item.Title())
 		}
 	}
 

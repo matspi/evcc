@@ -1,5 +1,7 @@
 template: solarlog
-description: Solarlog
+products:
+- description:
+    generic: Solarlog
 guidedsetup:
   enable: true
 params:

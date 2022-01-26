@@ -1,7 +1,11 @@
 template: pmcc
-description: Porsche Mobile Charger Connect
-requirements:
-  eebus: true
+products:
+- brand: Porsche
+  description:
+    generic: Mobile Charger Connect
+capabilities: ["iso151182"]
+requirements: 
+  evcc: ["eebus"]
 params:
 - name: ski
   required: true

@@ -11,10 +11,12 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/cloudfoundry/jibber_jabber"
+	"github.com/evcc-io/evcc/hems/semp"
 	"github.com/evcc-io/evcc/server"
 	"github.com/evcc-io/evcc/util"
 	"github.com/evcc-io/evcc/util/templates"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"github.com/thoas/go-funk"
 	"golang.org/x/text/language"
 )
 
@@ -33,6 +35,8 @@ type CmdConfigure struct {
 	advancedMode, expandedMode           bool
 	addedDeviceIndex                     int
 	errItemNotPresent, errDeviceNotValid error
+
+	capabilitySMAHems bool
 }
 
 // Run starts the interactive configuration
@@ -65,19 +69,31 @@ func (c *CmdConfigure) Run(log *util.Logger, flagLang string, advancedMode, expa
 
 	c.setDefaultTexts()
 
+	fmt.Println()
+	fmt.Println(c.localizedString("Intro", nil))
+
+	if !c.advancedMode {
+		// ask the user for his knowledge, so advanced mode can also be turned on this way
+		fmt.Println()
+		flowIndex, _ := c.askChoice(c.localizedString("Flow_Mode", nil), []string{
+			c.localizedString("Flow_Mode_Standard", nil),
+			c.localizedString("Flow_Mode_Advanced", nil),
+		})
+		if flowIndex == 1 {
+			c.advancedMode = true
+		}
+	}
+
 	if !c.advancedMode {
 		c.flowNewConfigFile()
 		return
 	}
 
 	fmt.Println()
-	fmt.Println(c.localizedString("Intro", nil))
-	flowChoices := []string{
+	flowIndex, _ := c.askChoice(c.localizedString("Flow_Type", nil), []string{
 		c.localizedString("Flow_Type_NewConfiguration", nil),
 		c.localizedString("Flow_Type_SingleDevice", nil),
-	}
-	fmt.Println()
-	flowIndex, _ := c.askChoice(c.localizedString("Flow_Type", nil), flowChoices)
+	})
 	switch flowIndex {
 	case 0:
 		c.flowNewConfigFile()
@@ -140,8 +156,18 @@ func (c *CmdConfigure) flowNewConfigFile() {
 	_ = c.configureDevices(DeviceCategoryPVMeter, true, true)
 	_ = c.configureDevices(DeviceCategoryBatteryMeter, true, true)
 	_ = c.configureDevices(DeviceCategoryVehicle, true, true)
+
 	c.configureLoadpoints()
 	c.configureSite()
+
+	// check if SMA HEMS is available and ask the user if it should be added
+	if c.capabilitySMAHems {
+		c.configureSMAHems()
+	}
+
+	if c.advancedMode && c.configuration.config.SponsorToken == "" {
+		_ = c.askSponsortoken(false)
+	}
 
 	yaml, err := c.configuration.RenderConfiguration()
 	if err != nil {
@@ -207,11 +233,13 @@ func (c *CmdConfigure) configureDevices(deviceCategory DeviceCategory, askAdding
 	}
 
 	for ok := true; ok; {
-		device, err := c.configureDeviceCategory(deviceCategory)
+		device, capabilities, err := c.configureDeviceCategory(deviceCategory)
 		if err != nil {
 			break
 		}
 		devices = append(devices, device)
+
+		c.processDeviceCapabilities(capabilities)
 
 		if !askMultiple {
 			break
@@ -224,6 +252,25 @@ func (c *CmdConfigure) configureDevices(deviceCategory DeviceCategory, askAdding
 	}
 
 	return devices
+}
+
+// configureSMAHems asks the user if he wants to add the SMA HEMS
+func (c *CmdConfigure) configureSMAHems() {
+	// check if the system provides a machine-id
+	if _, err := semp.UniqueDeviceID(); err != nil {
+		return
+	}
+
+	fmt.Println()
+	fmt.Println(c.localizedString("Flow_SMAHems_Setup", nil))
+
+	fmt.Println()
+	if !c.askYesNo(c.localizedString("Flow_SMAHems_Add", nil)) {
+		return
+	}
+
+	// check if we need to setup a HEMS
+	c.configuration.config.Hems = "type: sma\nAllowControl: false\n"
 }
 
 // configureLoadpoints asks loadpoint specific questions
@@ -243,7 +290,7 @@ func (c *CmdConfigure) configureLoadpoints() {
 			MinCurrent: 6,
 		}
 
-		charger, err := c.configureDeviceCategory(DeviceCategoryCharger)
+		charger, capabilities, err := c.configureDeviceCategory(DeviceCategoryCharger)
 		if err != nil {
 			break
 		}
@@ -253,7 +300,7 @@ func (c *CmdConfigure) configureLoadpoints() {
 
 		if !chargerHasMeter {
 			if c.askYesNo(c.localizedString("Loadpoint_WallboxWOMeter", nil)) {
-				chargeMeter, err := c.configureDeviceCategory(DeviceCategoryChargeMeter)
+				chargeMeter, _, err := c.configureDeviceCategory(DeviceCategoryChargeMeter)
 				if err == nil {
 					loadpoint.ChargeMeter = chargeMeter.Name
 					chargerHasMeter = true
@@ -272,45 +319,74 @@ func (c *CmdConfigure) configureLoadpoints() {
 			}
 		}
 
-		powerChoices := []string{
-			c.localizedString("Loadpoint_WallboxPower36kW", nil),
-			c.localizedString("Loadpoint_WallboxPower11kW", nil),
-			c.localizedString("Loadpoint_WallboxPower22kW", nil),
-			c.localizedString("Loadpoint_WallboxPowerOther", nil),
+		var minValue int = 6
+		if funk.ContainsString(capabilities, templates.CapabilityISO151182) {
+			minValue = 2
 		}
-		fmt.Println()
-		powerIndex, _ := c.askChoice(c.localizedString("Loadpoint_WallboxMaxPower", nil), powerChoices)
-		loadpoint.MinCurrent = 6
-		switch powerIndex {
-		case 0:
-			loadpoint.MaxCurrent = 16
-			if !chargerHasMeter {
-				loadpoint.Phases = 1
-			}
-		case 1:
-			loadpoint.MaxCurrent = 16
-			if !chargerHasMeter {
-				loadpoint.Phases = 3
-			}
-		case 2:
-			loadpoint.MaxCurrent = 32
-			if !chargerHasMeter {
-				loadpoint.Phases = 3
-			}
-		case 3:
-			amperage := c.askValue(question{
+
+		if c.advancedMode {
+			minAmperage := c.askValue(question{
+				label:          c.localizedString("Loadpoint_WallboxMinAmperage", nil),
+				valueType:      templates.ParamValueTypeNumber,
+				minNumberValue: int64(minValue),
+				maxNumberValue: 32,
+				required:       true})
+			loadpoint.MinCurrent, _ = strconv.Atoi(minAmperage)
+			maxAmperage := c.askValue(question{
 				label:          c.localizedString("Loadpoint_WallboxMaxAmperage", nil),
 				valueType:      templates.ParamValueTypeNumber,
 				minNumberValue: 6,
 				maxNumberValue: 32,
 				required:       true})
-			loadpoint.MaxCurrent, _ = strconv.Atoi(amperage)
+			loadpoint.MaxCurrent, _ = strconv.Atoi(maxAmperage)
 
 			if !chargerHasMeter {
 				phaseChoices := []string{"1", "2", "3"}
 				fmt.Println()
 				phaseIndex, _ := c.askChoice(c.localizedString("Loadpoint_WallboxPhases", nil), phaseChoices)
 				loadpoint.Phases = phaseIndex + 1
+			}
+		} else {
+			powerChoices := []string{
+				c.localizedString("Loadpoint_WallboxPower36kW", nil),
+				c.localizedString("Loadpoint_WallboxPower11kW", nil),
+				c.localizedString("Loadpoint_WallboxPower22kW", nil),
+				c.localizedString("Loadpoint_WallboxPowerOther", nil),
+			}
+			fmt.Println()
+			powerIndex, _ := c.askChoice(c.localizedString("Loadpoint_WallboxMaxPower", nil), powerChoices)
+			loadpoint.MinCurrent = minValue
+			switch powerIndex {
+			case 0:
+				loadpoint.MaxCurrent = 16
+				if !chargerHasMeter {
+					loadpoint.Phases = 1
+				}
+			case 1:
+				loadpoint.MaxCurrent = 16
+				if !chargerHasMeter {
+					loadpoint.Phases = 3
+				}
+			case 2:
+				loadpoint.MaxCurrent = 32
+				if !chargerHasMeter {
+					loadpoint.Phases = 3
+				}
+			case 3:
+				amperage := c.askValue(question{
+					label:          c.localizedString("Loadpoint_WallboxMaxAmperage", nil),
+					valueType:      templates.ParamValueTypeNumber,
+					minNumberValue: int64(minValue),
+					maxNumberValue: 32,
+					required:       true})
+				loadpoint.MaxCurrent, _ = strconv.Atoi(amperage)
+
+				if !chargerHasMeter {
+					phaseChoices := []string{"1", "2", "3"}
+					fmt.Println()
+					phaseIndex, _ := c.askChoice(c.localizedString("Loadpoint_WallboxPhases", nil), phaseChoices)
+					loadpoint.Phases = phaseIndex + 1
+				}
 			}
 		}
 

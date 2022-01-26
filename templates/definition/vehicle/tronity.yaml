@@ -1,7 +1,10 @@
 template: tronity
-description: Tronity
-requirements:
-  sponsorship: true
+products:
+- description:
+    generic: Tronity
+group: generic
+requirements: 
+  evcc: ["sponsorship"]
 params:
 - name: title
 - name: userid
@@ -16,7 +19,7 @@ params:
   example: W...
 - name: capacity
   default: 10
-- base: vehicleidentify
+- preset: vehicleidentify
 render: |
   type: tronity
   {{- if ne .title "" }}

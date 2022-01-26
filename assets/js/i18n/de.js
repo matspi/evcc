@@ -1,5 +1,10 @@
 export default {
-  header: { docs: "Dokumentation", blog: "Blog", github: "GitHub" },
+  header: {
+    docs: "Dokumentation",
+    blog: "Blog",
+    github: "GitHub",
+    login: "Anmeldungen",
+  },
   footer: {
     version: {
       versionShort: "v{installed}",
@@ -20,14 +25,15 @@ export default {
     },
     savings: {
       footerShort: "{percent}% Sonne",
-      footerLong: "{percent}% Sonnenstrom ",
-      modalTitle: "{total} kWh Strom geladen",
-      modalChartGrid: "Netzstrom {grid} kWh",
-      modalChartSelf: "Sonnenstrom {self} kWh",
-      modalSavingsPrice: "Effektiver Strompreis",
+      footerLong: "{percent}% Sonnenenergie",
+      modalTitleShort: "{total} kWh geladen · {percent}% Sonne",
+      modalTitleLong: "{total} kWh geladen · {percent}% Sonnenenergie",
+      modalChartGrid: "Netz {grid} kWh",
+      modalChartSelf: "Sonne {self} kWh",
+      modalSavingsPrice: "Effektiver Energiepreis",
       modalSavingsTotal: "Ersparnis gegenüber Netzbezug",
       modalExplaination: "Berechnung",
-      modalExplainationGrid: "Netzstrom {gridPrice}",
+      modalExplainationGrid: "Netz {gridPrice}",
       modalExplainationFeedIn: "Einspeisung {feedInPrice}",
       modalServerStart: "Seit Serverstart {since}.",
       modalNoData: "noch nicht geladen",
@@ -35,12 +41,12 @@ export default {
       experimentalText: "Unplausible Werte? Fragen zur Ansicht? Meld dich gerne in den",
     },
     sponsor: {
-      thanks: "Danke für deine Unterstützung {sponsor}! Das hilft uns bei der Weiterentwicklung.",
+      thanks: "Danke für deine Unterstützung, {sponsor}! Das hilft uns bei der Weiterentwicklung.",
       confetti: "Lust auf etwas Sponsor-Konfetti?",
       supportUs:
         "Wir möchten effizientes Zuhause-Laden zum Standard für möglichst viele Menschen machen. Helfe uns indem du die Weiterentwicklung und Pflege des Projekts unterstützt.",
       sticker: "...oder evcc Sticker?",
-      confettiPromise: "Es gibt auch Konfetti ;)",
+      confettiPromise: "Es gibt auch Sticker und digitales Konfetti ;)",
       becomeSponsor: "Werde jetzt GitHub Sponsor",
     },
   },
@@ -87,6 +93,10 @@ export default {
     },
     vehicleSubline: {
       mincharge: "Mindestladung bis {soc}%",
+    },
+    provider: {
+      login: "anmelden",
+      logout: "abmelden",
     },
     targetCharge: {
       inactiveLabel: "Zielzeit",

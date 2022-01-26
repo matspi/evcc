@@ -1,5 +1,8 @@
 template: nrgkick-connect
-description: NRGKick Connect
+products:
+- brand: NRGKick
+  description:
+    generic: Connect
 params:
 - name: host
   required: true

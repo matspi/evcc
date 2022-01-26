@@ -1,5 +1,8 @@
 template: tesla-powerwall
-description: Tesla Powerwall
+products:
+- brand: Tesla
+  description:
+    generic: Powerwall
 guidedsetup:
   enable: true
 params:

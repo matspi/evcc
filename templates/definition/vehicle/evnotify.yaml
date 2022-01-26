@@ -1,5 +1,8 @@
 template: evnotify
-description: evNotify
+products:
+- description:
+    generic: evNotify
+group: generic
 params:
 - name: title
 - name: akey
@@ -9,14 +12,14 @@ params:
 - name: capacity
   default: 64
   valuetype: float
-- base: vehicleidentify
+- preset: vehicleidentify
 render: |
   type: custom
   {{- if ne .title "" }}
   title: {{ .title }}
   {{- end }}
   capacity: {{ .capacity }}
-  charge:
+  soc:
     type: http
     uri: https://app.evnotify.de/soc?akey={{ .akey }}&token={{ .token }} # evNotify Server + AKEY
     method: GET

@@ -1,7 +1,8 @@
 template: daheimladen
-description: Daheimladen (Cloud API)
-requirements:
-  sponsorship: true
+products:
+- brand: DaheimLaden
+  description:
+    generic: Wallbox (Cloud API)
 params:
 - name: token
   help:

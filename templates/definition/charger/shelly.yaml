@@ -1,5 +1,8 @@
 template: shelly
-description: Shelly
+products: 
+- description:
+    generic: Shelly
+group: switchsockets
 params:
 - name: host
   required: true

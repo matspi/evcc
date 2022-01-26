@@ -1,5 +1,10 @@
 export default {
-  header: { docs: "Documentation", blog: "Blog", github: "GitHub" },
+  header: {
+    docs: "Documentation",
+    blog: "Blog",
+    github: "GitHub",
+    login: "Logins",
+  },
   footer: {
     version: {
       versionShort: "v{installed}",
@@ -21,7 +26,8 @@ export default {
     savings: {
       footerShort: "{percent}% solar",
       footerLong: "{percent}% solar energy",
-      modalTitle: "{total} kWh solar energy charged",
+      modalTitleShort: "{total} kWh charged · {percent}% solar",
+      modalTitleLong: "{total} kWh charged · {percent}% solar energy",
       modalChartGrid: "Grid energy {grid} kWh",
       modalChartSelf: "Solar energy {self} kWh",
       modalSavingsPrice: "Effective energy price",
@@ -35,12 +41,12 @@ export default {
       experimentalText: "Implausible values? Questions about this view? Feel free to join our ",
     },
     sponsor: {
-      thanks: "Thanks for your support {sponsor}! It helps us with the further development.",
+      thanks: "Thanks for your support, {sponsor}! It helps us with the further development.",
       confetti: "Ready for some sponsor confetti?",
       supportUs:
         "We want to make efficient home charging the standard for as many people as possible. Help us by supporting the further development and maintenance of the project.",
       sticker: "...or evcc stickers?",
-      confettiPromise: "There will be confetti ;)",
+      confettiPromise: "There will be stickers and digital confetti ;)",
       becomeSponsor: "Become a GitHub Sponsor",
     },
   },
@@ -86,6 +92,10 @@ export default {
     },
     vehicleSubline: {
       mincharge: "minimum charging to {soc}%",
+    },
+    provider: {
+      login: "login",
+      logout: "logout",
     },
     targetCharge: {
       inactiveLabel: "Target time",

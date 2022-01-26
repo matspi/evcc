@@ -5,9 +5,12 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/evcc-io/evcc/provider/mqtt"
+	"github.com/evcc-io/evcc/util"
 	"github.com/evcc-io/evcc/util/sponsor"
 	"github.com/evcc-io/evcc/util/templates"
 	"github.com/thoas/go-funk"
+	stripmd "github.com/writeas/go-strip-markdown"
 	"gopkg.in/yaml.v3"
 )
 
@@ -15,7 +18,7 @@ import (
 func (c *CmdConfigure) processDeviceSelection(deviceCategory DeviceCategory) (templates.Template, error) {
 	templateItem := c.selectItem(deviceCategory)
 
-	if templateItem.Description == c.localizedString("ItemNotPresent", nil) {
+	if templateItem.Title() == c.localizedString("ItemNotPresent", nil) {
 		return templateItem, c.errItemNotPresent
 	}
 
@@ -31,7 +34,7 @@ func (c *CmdConfigure) processDeviceValues(values map[string]interface{}, templa
 	c.addedDeviceIndex++
 
 	device.Name = fmt.Sprintf("%s%d", DeviceCategories[deviceCategory].defaultName, c.addedDeviceIndex)
-	device.Title = templateItem.Description
+	device.Title = templateItem.Title()
 	for item, value := range values {
 		if strings.ToLower(item) != "title" {
 			continue
@@ -45,9 +48,9 @@ func (c *CmdConfigure) processDeviceValues(values map[string]interface{}, templa
 
 	fmt.Println()
 	if categoryWithUsage {
-		fmt.Println(c.localizedString("TestingDevice_TitleUsage", localizeMap{"Device": templateItem.Description, "Usage": deviceCategory.String()}))
+		fmt.Println(c.localizedString("TestingDevice_TitleUsage", localizeMap{"Device": templateItem.Title(), "Usage": deviceCategory.String()}))
 	} else {
-		fmt.Println(c.localizedString("TestingDevice_Title", localizeMap{"Device": templateItem.Description}))
+		fmt.Println(c.localizedString("TestingDevice_Title", localizeMap{"Device": templateItem.Title()}))
 	}
 
 	deviceTest := DeviceTest{
@@ -61,9 +64,9 @@ func (c *CmdConfigure) processDeviceValues(values map[string]interface{}, templa
 		fmt.Println("  ", c.localizedString("Error", localizeMap{"Error": err}))
 		fmt.Println()
 
-		question := c.localizedString("TestingDevice_AddFailed", localizeMap{"Device": templateItem.Description})
+		question := c.localizedString("TestingDevice_AddFailed", localizeMap{"Device": templateItem.Title()})
 		if categoryWithUsage {
-			question = c.localizedString("TestingDevice_AddFailedUsage", localizeMap{"Device": templateItem.Description, "Usage": deviceCategory.String()})
+			question = c.localizedString("TestingDevice_AddFailedUsage", localizeMap{"Device": templateItem.Title(), "Usage": deviceCategory.String()})
 		}
 		if !c.askYesNo(question) {
 			c.addedDeviceIndex--
@@ -77,7 +80,7 @@ func (c *CmdConfigure) processDeviceValues(values map[string]interface{}, templa
 
 	templateItem.Params = append(templateItem.Params, templates.Param{Name: "name", Value: device.Name})
 	if !c.expandedMode {
-		b, err := templateItem.RenderProxyWithValues(values, false)
+		b, err := templateItem.RenderProxyWithValues(values, c.lang)
 		if err != nil {
 			c.addedDeviceIndex--
 			return device, err
@@ -91,7 +94,7 @@ func (c *CmdConfigure) processDeviceValues(values map[string]interface{}, templa
 				templateItem.Render = fmt.Sprintf("name: {{ .name }}\n%s", templateItem.Render)
 			}
 		}
-		b, _, err := templateItem.RenderResult(false, values)
+		b, _, err := templateItem.RenderResult(templates.TemplateRenderModeInstance, values)
 		if err != nil {
 			c.addedDeviceIndex--
 			return device, err
@@ -103,45 +106,52 @@ func (c *CmdConfigure) processDeviceValues(values map[string]interface{}, templa
 	return device, nil
 }
 
+func (c *CmdConfigure) processDeviceCapabilities(capabilitites []string) {
+	if funk.ContainsString(capabilitites, templates.CapabilitySMAHems) {
+		c.capabilitySMAHems = true
+	}
+}
+
 // processDeviceRequirements handles device requirements
 func (c *CmdConfigure) processDeviceRequirements(templateItem templates.Template) error {
-	if len(templateItem.Requirements.Description.String(c.lang)) > 0 {
+	requirementDescription := stripmd.Strip(templateItem.Requirements.Description.String(c.lang))
+	if len(requirementDescription) > 0 {
+		fmt.Println()
+		fmt.Println("-------------------------------------------------")
 		fmt.Println(c.localizedString("Requirements_Title", nil))
-		fmt.Println("  ", templateItem.Requirements.Description.String(c.lang))
+		fmt.Println(requirementDescription)
 		if len(templateItem.Requirements.URI) > 0 {
 			fmt.Println("  " + c.localizedString("Requirements_More", nil) + " " + templateItem.Requirements.URI)
 		}
+		fmt.Println("-------------------------------------------------")
 	}
 
 	// check if sponsorship is required
-	if templateItem.Requirements.Sponsorship && c.configuration.config.SponsorToken == "" {
-		fmt.Println("-- Sponsorship -----------------------------")
-		fmt.Println()
-		fmt.Println(c.localizedString("Requirements_Sponsorship_Title", nil))
-		fmt.Println()
-		if !c.askYesNo(c.localizedString("Requirements_Sponsorship_Token", nil)) {
-			return c.errItemNotPresent
+	if funk.ContainsString(templateItem.Requirements.EVCC, templates.RequirementSponsorship) && c.configuration.config.SponsorToken == "" {
+		if err := c.askSponsortoken(true); err != nil {
+			return err
 		}
-		sponsortoken := c.askValue(question{
-			label:    c.localizedString("Requirements_Sponsorship_Token_Input", nil),
-			mask:     true,
-			required: true})
-		c.configuration.config.SponsorToken = sponsortoken
-		sponsor.Subject = sponsortoken
-		fmt.Println()
-		fmt.Println("--------------------------------------------")
 	}
 
-	// check if we need to setup a HEMS
-	if templateItem.Requirements.Hems != "" && funk.ContainsString(templates.HemsValueTypes, templateItem.Requirements.Hems) {
-		switch templateItem.Requirements.Hems {
-		case templates.HemsTypeSMA:
-			c.configuration.config.Hems = "type: sma\nAllowControl: false\n"
+	// check if we need to setup an MQTT broker
+	if funk.ContainsString(templateItem.Requirements.EVCC, templates.RequirementMQTT) {
+		if c.configuration.config.MQTT == "" {
+			mqttConfig, err := c.configureMQTT()
+			if err != nil {
+				return err
+			}
+
+			mqttYaml, err := yaml.Marshal(mqttConfig)
+			if err != nil {
+				return err
+			}
+
+			c.configuration.config.MQTT = string(mqttYaml)
 		}
 	}
 
 	// check if we need to setup an EEBUS HEMS
-	if templateItem.Requirements.Eebus {
+	if funk.ContainsString(templateItem.Requirements.EVCC, templates.RequirementEEBUS) {
 		if c.configuration.config.EEBUS == "" {
 			fmt.Println()
 			fmt.Println("-- EEBUS -----------------------------------")
@@ -173,36 +183,133 @@ func (c *CmdConfigure) processDeviceRequirements(templateItem templates.Template
 	return nil
 }
 
+func (c *CmdConfigure) askSponsortoken(required bool) error {
+	fmt.Println("-- Sponsorship -----------------------------")
+	if required {
+		fmt.Println()
+		fmt.Println(c.localizedString("Requirements_Sponsorship_Title", nil))
+	} else {
+		fmt.Println()
+		fmt.Println(c.localizedString("Requirements_Sponsorship_Optional_Title", nil))
+	}
+	fmt.Println()
+	if !c.askYesNo(c.localizedString("Requirements_Sponsorship_Token", nil)) {
+		return c.errItemNotPresent
+	}
+
+	sponsortoken := c.askValue(question{
+		label:    c.localizedString("Requirements_Sponsorship_Token_Input", nil),
+		mask:     true,
+		required: true})
+	c.configuration.config.SponsorToken = sponsortoken
+	sponsor.Subject = sponsortoken
+	fmt.Println()
+	fmt.Println("--------------------------------------------")
+
+	return nil
+}
+
+func (c *CmdConfigure) configureMQTT() (map[string]interface{}, error) {
+	fmt.Println()
+	fmt.Println("-- MQTT Broker ----------------------------")
+
+	var err error
+
+	for ok := true; ok; {
+		fmt.Println()
+		host := c.askValue(question{
+			label:    c.localizedString("UserFriendly_Host_Name", nil),
+			mask:     false,
+			required: true})
+
+		port := c.askValue(question{
+			label:    c.localizedString("UserFriendly_Port_Name", nil),
+			mask:     false,
+			required: true})
+
+		user := c.askValue(question{
+			label:    c.localizedString("UserFriendly_User_Name", nil),
+			mask:     false,
+			required: false})
+
+		password := c.askValue(question{
+			label:    c.localizedString("UserFriendly_Password_Name", nil),
+			mask:     true,
+			required: false})
+
+		fmt.Println()
+		fmt.Println("-------------------------------------------")
+
+		broker := fmt.Sprintf("%s:%s", host, port)
+
+		mqttConfig := map[string]interface{}{
+			"broker":   broker,
+			"user":     user,
+			"password": password,
+		}
+
+		log := util.NewLogger("mqtt")
+
+		if mqtt.Instance, err = mqtt.RegisteredClient(log, broker, user, password, "", 1); err == nil {
+			return mqttConfig, nil
+		}
+
+		fmt.Println()
+		question := c.localizedString("TestingMQTTFailed", nil)
+		if !c.askYesNo(question) {
+			return nil, fmt.Errorf("failed configuring mqtt: %w", err)
+		}
+	}
+
+	return nil, fmt.Errorf("failed configuring mqtt: %w", err)
+}
+
 // fetchElements returns template items of a given class
 func (c *CmdConfigure) fetchElements(deviceCategory DeviceCategory) []templates.Template {
 	var items []templates.Template
-
 	for _, tmpl := range templates.ByClass(DeviceCategories[deviceCategory].class.String()) {
-		if len(tmpl.Params) == 0 || len(tmpl.Description) == 0 {
+		if len(tmpl.Params) == 0 {
 			continue
 		}
 
-		if deviceCategory == DeviceCategoryGuidedSetup {
-			if tmpl.GuidedSetup.Enable {
-				items = append(items, tmpl)
+		for _, t := range tmpl.Titles(c.lang) {
+			titleTmpl := templates.Template{
+				TemplateDefinition: tmpl.TemplateDefinition,
+				ConfigDefaults:     tmpl.ConfigDefaults,
+				Lang:               c.lang,
 			}
-		} else {
-			if len(DeviceCategories[deviceCategory].categoryFilter) == 0 ||
-				c.paramChoiceContains(tmpl.Params, templates.ParamUsage, DeviceCategories[deviceCategory].categoryFilter.String()) {
-				items = append(items, tmpl)
+			title := t
+			groupTitle := titleTmpl.GroupTitle()
+			if groupTitle != "" {
+				title += " [" + groupTitle + "]"
+			}
+			titleTmpl.SetTitle(title)
+
+			if deviceCategory == DeviceCategoryGuidedSetup {
+				if tmpl.GuidedSetup.Enable {
+					items = append(items, titleTmpl)
+				}
+			} else {
+				if len(DeviceCategories[deviceCategory].categoryFilter) == 0 ||
+					c.paramChoiceContains(tmpl.Params, templates.ParamUsage, DeviceCategories[deviceCategory].categoryFilter.String()) {
+					items = append(items, titleTmpl)
+				}
 			}
 		}
 	}
 
 	sort.Slice(items[:], func(i, j int) bool {
 		// sort generic templates to the bottom
-		if items[i].Generic && !items[j].Generic {
+		if items[i].Group != "" && items[j].Group == "" {
 			return false
 		}
-		if !items[i].Generic && items[j].Generic {
+		if items[i].Group == "" && items[j].Group != "" {
 			return true
 		}
-		return strings.ToLower(items[i].Description) < strings.ToLower(items[j].Description)
+		if items[i].Group != items[j].Group {
+			return strings.ToLower(items[i].GroupTitle()) < strings.ToLower(items[j].GroupTitle())
+		}
+		return strings.ToLower(items[i].Title()) < strings.ToLower(items[j].Title())
 	})
 
 	return items
@@ -233,25 +340,76 @@ func (c *CmdConfigure) paramChoiceValues(params []templates.Param, name string) 
 // processConfig processes an EVCC configuration item
 // Returns:
 //   a map with param name and values
-func (c *CmdConfigure) processConfig(paramItems []templates.Param, deviceCategory DeviceCategory) map[string]interface{} {
-	usageFilter := DeviceCategories[deviceCategory].categoryFilter
-
-	additionalConfig := make(map[string]interface{})
-
+func (c *CmdConfigure) processConfig(templateItem templates.Template, deviceCategory DeviceCategory) map[string]interface{} {
 	fmt.Println()
 	fmt.Println(c.localizedString("Config_Title", nil))
 	fmt.Println()
 
-	for _, param := range paramItems {
+	c.processModbusConfig(&templateItem, deviceCategory)
+
+	return c.processParams(templateItem, templateItem.Params, deviceCategory)
+}
+
+// process a list of params
+func (c *CmdConfigure) processParams(templateItem templates.Template, params []templates.Param, deviceCategory DeviceCategory) map[string]interface{} {
+	usageFilter := DeviceCategories[deviceCategory].categoryFilter
+
+	additionalConfig := make(map[string]interface{})
+
+	for _, param := range params {
+		if param.Dependencies != nil {
+			valid := true
+			for _, dep := range param.Dependencies {
+				i, valueParam := templateItem.ParamByName(dep.Name)
+				if i == -1 {
+					break
+				}
+
+				value := valueParam.Value
+				switch dep.Check {
+				case templates.DependencyCheckEmpty:
+					if additionalConfig[dep.Name] != nil {
+						valid = additionalConfig[dep.Name] == ""
+					} else {
+						valid = value == ""
+					}
+				case templates.DependencyCheckNotEmpty:
+					if additionalConfig[dep.Name] != nil {
+						valid = additionalConfig[dep.Name] != ""
+					} else {
+						valid = value != ""
+					}
+				case templates.DependencyCheckEqual:
+					if additionalConfig[dep.Name] != nil {
+						valid = additionalConfig[dep.Name] == dep.Value
+					} else {
+						valid = value == dep.Value
+					}
+				}
+				if !valid {
+					break
+				}
+			}
+			if !valid {
+				continue
+			}
+		}
+
 		switch param.Name {
 		case templates.ParamModbus:
-			c.processModbusConfig(param, deviceCategory, additionalConfig)
+			additionalConfig[param.Name] = param.Value
+
 		case templates.ParamUsage:
 			if usageFilter != "" {
 				additionalConfig[param.Name] = usageFilter.String()
 			}
 		default:
 			if !c.advancedMode && param.Advanced {
+				continue
+			}
+
+			if param.Hidden && param.Default != "" {
+				additionalConfig[param.Name] = param.Default
 				continue
 			}
 
@@ -271,7 +429,7 @@ func (c *CmdConfigure) processConfig(paramItems []templates.Param, deviceCategor
 func (c *CmdConfigure) processListInputConfig(param templates.Param) []string {
 	var values []string
 
-	// ask for values until the decides stops
+	// ask for values until the user decides to stop
 	for ok := true; ok; {
 		newValue := c.processInputConfig(param)
 		values = append(values, newValue)
@@ -290,113 +448,60 @@ func (c *CmdConfigure) processListInputConfig(param templates.Param) []string {
 
 // handle user input for a simple one value input
 func (c *CmdConfigure) processInputConfig(param templates.Param) string {
-	userFriendly := c.userFriendlyTexts(param)
+	label := param.Name
+	langLabel := param.Description.String(c.lang)
+	if langLabel != "" {
+		label = langLabel
+	}
+
 	return c.askValue(question{
-		label:        userFriendly.Name,
-		defaultValue: userFriendly.Default,
-		exampleValue: userFriendly.Example,
-		help:         userFriendly.Help.String(c.lang),
-		valueType:    userFriendly.ValueType,
-		mask:         userFriendly.Mask,
-		required:     userFriendly.Required})
+		label:        label,
+		defaultValue: param.Default,
+		exampleValue: param.Example,
+		help:         param.Help.String(c.lang),
+		valueType:    param.ValueType,
+		mask:         param.Mask,
+		required:     param.Required})
 }
 
 // handle user input for a device modbus configuration
-func (c *CmdConfigure) processModbusConfig(param templates.Param, deviceCategory DeviceCategory, additionalConfig map[string]interface{}) {
-	var selectedModbusKey string
-
-	// baudrate and comset defaults can be overwritten, as they are device specific
-	deviceDefaultBaudrate := templates.ModbusParamValueBaudrate
-	deviceDefaultComset := templates.ModbusParamValueComset
-	deviceDefaultPort := templates.ModbusParamValuePort
-	deviceDefaultId := templates.ModbusParamValueId
-
-	if param.Baudrate != 0 {
-		deviceDefaultBaudrate = param.Baudrate
-	}
-	if param.Comset != "" {
-		deviceDefaultComset = param.Comset
-	}
-	if param.Port != 0 {
-		deviceDefaultPort = param.Port
-	}
-	if param.ID != 0 {
-		deviceDefaultId = param.ID
-	}
-
+func (c *CmdConfigure) processModbusConfig(templateItem *templates.Template, deviceCategory DeviceCategory) {
 	var choices []string
-	var choiceKeys []string
+	var choiceTypes []string
 
-	for _, choice := range param.Choice {
-		switch choice {
-		case templates.ModbusChoiceRS485:
-			choices = append(choices, "Serial (USB-RS485 Adapter)")
-			choiceKeys = append(choiceKeys, templates.ModbusKeyRS485Serial)
-			choices = append(choices, "Serial (Ethernet-RS485 Adapter)")
-			choiceKeys = append(choiceKeys, templates.ModbusKeyRS485TCPIP)
-		case templates.ModbusChoiceTCPIP:
-			choices = append(choices, "TCP/IP")
-			choiceKeys = append(choiceKeys, templates.ModbusKeyTCPIP)
+	modbusIndex, modbusParam := templateItem.ParamByName(templates.ParamModbus)
+	if modbusIndex == -1 {
+		return
+	}
+
+	config := templateItem.ConfigDefaults.Config.Modbus
+
+	for _, choice := range modbusParam.Choice {
+		if config.Interfaces[choice] == nil {
+			continue
+		}
+
+		for _, itype := range config.Interfaces[choice] {
+			title := config.Types[itype].Description
+			choices = append(choices, title.String(c.lang))
+			choiceTypes = append(choiceTypes, itype)
 		}
 	}
 
-	if len(choices) > 0 {
-		// ask for modbus address
-		id := c.askValue(question{
-			label:        "ID",
-			help:         "Modbus ID",
-			defaultValue: deviceDefaultId,
-			valueType:    templates.ParamValueTypeNumber,
-			required:     true})
-		additionalConfig[templates.ModbusParamNameId] = id
-
-		// ask for modbus interface type
-		var index int
-		if len(choices) > 1 {
-			index, _ = c.askChoice(c.localizedString("Config_ModbusInterface", nil), choices)
-		}
-		selectedModbusKey = choiceKeys[index]
-		additionalConfig[templates.ParamModbus] = selectedModbusKey
-
-		switch selectedModbusKey {
-		case templates.ModbusKeyRS485Serial:
-			device := c.askValue(question{
-				label:        c.localizedString("UserFriendly_Device_Name", nil),
-				help:         c.localizedString("UserFriendly_Device_Help", nil),
-				exampleValue: templates.ModbusParamValueDevice,
-				required:     true})
-			additionalConfig[templates.ModbusParamNameDevice] = device
-
-			baudrate := c.askValue(question{
-				label:        c.localizedString("UserFriendly_Baudrate_Name", nil),
-				help:         c.localizedString("UserFriendly_Baudrate_Help", nil),
-				defaultValue: deviceDefaultBaudrate,
-				valueType:    templates.ParamValueTypeNumber,
-				required:     true})
-			additionalConfig[templates.ModbusParamNameBaudrate] = baudrate
-
-			comset := c.askValue(question{
-				label:        c.localizedString("UserFriendly_ComSet_Name", nil),
-				defaultValue: deviceDefaultComset,
-				required:     true})
-			additionalConfig[templates.ModbusParamNameComset] = comset
-
-		case templates.ModbusKeyRS485TCPIP, templates.ModbusKeyTCPIP:
-			if selectedModbusKey == templates.ModbusKeyRS485TCPIP {
-				additionalConfig[templates.ModbusParamNameRTU] = "true"
-			}
-			host := c.askValue(question{
-				label:        c.localizedString("UserFriendly_Host_Name", nil),
-				exampleValue: templates.ModbusParamValueHost,
-				required:     true})
-			additionalConfig[templates.ModbusParamNameHost] = host
-
-			port := c.askValue(question{
-				label:        c.localizedString("UserFriendly_Port_Name", nil),
-				defaultValue: deviceDefaultPort,
-				valueType:    templates.ParamValueTypeNumber,
-				required:     true})
-			additionalConfig[templates.ModbusParamNamePort] = port
-		}
+	if len(choices) == 0 {
+		return
 	}
+
+	// ask for modbus interface type
+	var index int
+	if len(choices) > 1 {
+		index, _ = c.askChoice(c.localizedString("Config_ModbusInterface", nil), choices)
+	}
+
+	values := make(map[string]interface{})
+	templateItem.Params[modbusIndex].Value = choiceTypes[index]
+	// add the interface type specific modbus params
+	templateItem.ModbusParams(choiceTypes[index], values)
+	// Update the modbus default values
+	templateItem.ModbusValues(templates.TemplateRenderModeInstance, values)
 }

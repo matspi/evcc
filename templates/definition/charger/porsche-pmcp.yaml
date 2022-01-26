@@ -1,7 +1,10 @@
 template: pmcp
-description: Porsche Mobile Charger Plus
-requirements:
-  eebus: true
+products:
+- brand: Porsche
+  description:
+    generic: Mobile Charger Plus
+requirements: 
+  evcc: ["eebus"]
 params:
 - name: ski
   required: true

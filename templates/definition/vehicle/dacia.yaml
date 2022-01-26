@@ -1,8 +1,9 @@
 template: dacia
-description: Dacia
+products:
+- brand: Dacia
 params:
-- base: vehiclebase
-- base: vehicleidentify
+- preset: vehiclebase
+- preset: vehicleidentify
 - name: capacity
   default: 27.4
 render: |

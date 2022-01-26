@@ -16,13 +16,20 @@ The following describes each possible element in a yaml file
 
 `template` expects a unique template name for the current device class (charger, meter, vehicle are device classes)
 
-## `description`
+## `products`
 
-`description` expects a human readable description of the device, best language neutral and containing the name of the product
+`products` expects a list of products that work with this template.
 
-## `generic`
+Each product contains:
 
-`generic: true` defines templates that are typically not a hardware product, but rather generic implementations that can be used by a variety of products (e.g. inverters with sunspec support) or for software components like vzlogger.
+- `brand`: an optional brand description of the product
+- `description`: an optional description e.g. of the product model. Expects `generic`, `de`, `en`: an optional description of the product
+
+Either `brand`, or `description` need to be set.
+
+## `group`
+
+`group` contains the reference to a `groups.yaml` entry. This is used to group switchable sockets and generic device support (e.g. SunSpec) templates.
 
 ## `guidedsetup`
 
@@ -60,17 +67,38 @@ Allows to define a list of meter devices that are typically installed with this 
 
 Example Use Case: With SMA Home Manager, there can be a SMA Energy Meter used for getting the PV generation or multiple SMA PV inverters. But never both together. So if the used added an SMA Energy Meter, then the flow shoudn't ask for SMA PV inverters.
 
+## `capabilities`
+
+`capabilities` provides an option to define special capabilities of the device as a list of strings
+
+**Possible Values**:
+
+- `iso151182`: If the charger supports communicating via ISO15118-2
+- `rfid`: If the charger supports RFID
+- `1p3p`: If the charger supports 1P/3P-phase switching
+- `smahems`: If the device can be used as an SMA HEMS device, only used for the SMA Home Manager 2.0 right now
+
 ## `requirements`
 
 `requirements` provides an option to define various requirements / dependencies that need to be setup
 
+### `evcc`
+
+`evcc` is a list of evcc specific system requirements
+
 **Possible Values**:
 
-- `sponsorshipt: true`: If the device requires a sponsorship token
-- `eebus: true`: If the device is accessed via the eebus protocol and thus requires the corresponding setup
-- `hems: sma`: If the device can be used as an SMA HEMS device, only used for the SMA Home Manager 2.0 right now
-- `description`: expects language specific texts via `de`, `en` to provide specific things the user has to do, e.g. minimum firmware versions or specific hardware setup requirements
-- `uri`: a link providing more help on the requirements
+- `sponsorship`: If the device requires a sponsorship token
+- `eebus`: If the device is accessed via the eebus protocol and thus requires the corresponding setup
+- `mqtt`: If the device a MQTT setup
+
+### `description`
+
+`description` expects language specific texts via `de`, `en` to provide specific things the user has to do, e.g. minimum firmware versions or specific hardware setup requirements. The content can be multiline and Markdown
+
+### `uri`
+
+`uri` is a link providing more help on the requirements
 
 ## `loglevel`
 
@@ -94,6 +122,39 @@ Example Use Case: With SMA Home Manager, there can be a SMA Energy Meter used fo
 
 - `usage`: specifies a list of meter classes, the device can be used for. Possible values are `grid`, `pv`, `battery`, and `charger`
 - `modbus`: specifies that this device is accessed via modbus. It requires the `choice` property to have a list of possible interface values the device provides. These values can be `rs485` and `tcpip`. The command will use either to ask the appropriate questions and settings. The `render` section needs to include the string `{{include "modbus" .}}` in all places where the configuration needs modbus settings.
+
+#### Modbus Options
+
+- `id`: Device specific default for modbus ID
+- `port`: Device specific default for modbus TCPIP port
+- `baudrate`: Device specific default for modbus RS485 baudrate
+- `comset`: Device specific default for modbus RS485 comset
+
+### `description`
+
+`description` allows to define user friendly and language specific names via `de`, `en`, `generic`
+
+### `dependencies`
+
+`dependencies` allows to define a list of checks, when this param should be presented to the user, if it should be only in special cases
+
+#### `name`
+
+`name` referenced the `param` `name` value
+
+#### `check`
+
+`check` defines which kind of check should be performed
+
+**Possible values**:
+
+- `empty`: if the `value` of the referenced `param` `name` should be empty
+- `notempty`: if the `value` of the referenced `param` `name` should be **NOT** empty
+- `equal`: if the `value` of the referenced `param` `name` should match the value of the `value` property
+
+#### `value`
+
+`value` property is used in the `equal` `check`
 
 ### `required`
 
@@ -130,7 +191,7 @@ Example Use Case: With SMA Home Manager, there can be a SMA Energy Meter used fo
 
 ### `help`
 
-`help` expects language specific help texts via `de`, `en`
+`help` expects language specific help texts via `generic` (language independent), `de`, `en`
 
 ## `render`
 
