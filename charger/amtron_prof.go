@@ -18,12 +18,12 @@ type AmtronProfessional struct {
 }
 
 const (
-	amtronRegEnergy     = 200
-	amtronRegCurrent    = 212
-	amtronRegPower      = 206
-	amtronRegStatus     = 122
-	amtronRegAmpsConfig = 1000
-	amtronRegEVCCID     = 741
+	amtronProfRegEnergy     = 200
+	amtronProfRegCurrent    = 212
+	amtronProfRegPower      = 206
+	amtronProfRegStatus     = 122
+	amtronProfRegAmpsConfig = 1000
+	amtronProfRegEVCCID     = 741
 )
 
 func init() {
@@ -45,7 +45,7 @@ func NewAmtronProfessionalFromConfig(other map[string]interface{}) (api.Charger,
 
 // NewAmtronProfessional creates Amtron charger
 func NewAmtronProfessional(uri, device, comset string, baudrate int, slaveID uint8) (api.Charger, error) {
-	conn, err := modbus.NewConnection(uri, device, comset, baudrate, modbus.TcpFormat, slaveID)
+	conn, err := modbus.NewConnection(uri, device, comset, baudrate, modbus.Tcp, slaveID)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func NewAmtronProfessional(uri, device, comset string, baudrate int, slaveID uin
 
 // Status implements the api.Charger interface
 func (wb *AmtronProfessional) Status() (api.ChargeStatus, error) {
-	b, err := wb.conn.ReadHoldingRegisters(amtronRegStatus, 1)
+	b, err := wb.conn.ReadHoldingRegisters(amtronProfRegStatus, 1)
 	if err != nil {
 		return api.StatusNone, err
 	}
@@ -110,7 +110,7 @@ func (wb *AmtronProfessional) Enable(enable bool) error {
 func (wb *AmtronProfessional) MaxCurrent(current int64) error {
 	wb.current = current
 	if wb.enabled {
-		_, err := wb.conn.WriteSingleRegister(amtronRegAmpsConfig, uint16(current))
+		_, err := wb.conn.WriteSingleRegister(amtronProfRegAmpsConfig, uint16(current))
 		return err
 	}
 
@@ -121,13 +121,13 @@ var _ api.MeterEnergy = (*AmtronProfessional)(nil)
 
 // TotalEnergy implements the api.MeterEnergy interface
 func (wb *AmtronProfessional) TotalEnergy() (float64, error) {
-	l1, err := wb.conn.ReadHoldingRegisters(amtronRegEnergy, 2)
+	l1, err := wb.conn.ReadHoldingRegisters(amtronProfRegEnergy, 2)
 	if err != nil {
 		return 0, err
 	}
 	var l1Energy = toUint32(l1)
 
-	l2, err := wb.conn.ReadHoldingRegisters(amtronRegEnergy+2, 2)
+	l2, err := wb.conn.ReadHoldingRegisters(amtronProfRegEnergy+2, 2)
 	if err != nil {
 		return 0, err
 	}
@@ -136,7 +136,7 @@ func (wb *AmtronProfessional) TotalEnergy() (float64, error) {
 		l2Energy = 0
 	}
 
-	l3, err := wb.conn.ReadHoldingRegisters(amtronRegEnergy+4, 2)
+	l3, err := wb.conn.ReadHoldingRegisters(amtronProfRegEnergy+4, 2)
 	if err != nil {
 		return 0, err
 	}
@@ -149,7 +149,7 @@ func (wb *AmtronProfessional) TotalEnergy() (float64, error) {
 }
 
 func toUint32(b []byte) uint32 {
-	if(len(b) < 4) {
+	if len(b) < 4 {
 		return 0
 	}
 	return uint32(binary.LittleEndian.Uint16(b)*256) + uint32(binary.BigEndian.Uint16(b[2:]))
@@ -159,17 +159,17 @@ var _ api.MeterCurrent = (*AmtronProfessional)(nil)
 
 // Currents implements the api.MeterCurrent interface
 func (wb *AmtronProfessional) Currents() (float64, float64, float64, error) {
-	l1, err := wb.conn.ReadHoldingRegisters(amtronRegCurrent, 2)
+	l1, err := wb.conn.ReadHoldingRegisters(amtronProfRegCurrent, 2)
 	var l1Curr = toUint32(l1)
 	if err != nil {
 		return 0, 0, 0, err
 	}
-	l2, err := wb.conn.ReadHoldingRegisters(amtronRegCurrent+2, 2)
+	l2, err := wb.conn.ReadHoldingRegisters(amtronProfRegCurrent+2, 2)
 	var l2Curr = toUint32(l2)
 	if err != nil {
 		return 0, 0, 0, err
 	}
-	l3, err := wb.conn.ReadHoldingRegisters(amtronRegCurrent+4, 2)
+	l3, err := wb.conn.ReadHoldingRegisters(amtronProfRegCurrent+4, 2)
 	var l3Curr = toUint32(l3)
 	if err != nil {
 		return 0, 0, 0, err
@@ -181,19 +181,19 @@ func (wb *AmtronProfessional) Currents() (float64, float64, float64, error) {
 var _ api.Meter = (*AmtronProfessional)(nil)
 
 func (wb *AmtronProfessional) CurrentPower() (float64, error) {
-	l1, err := wb.conn.ReadHoldingRegisters(amtronRegPower, 2)
+	l1, err := wb.conn.ReadHoldingRegisters(amtronProfRegPower, 2)
 	if err != nil {
 		return 0, err
 	}
 	var l1Power uint32 = toUint32(l1)
 
-	l2, err := wb.conn.ReadHoldingRegisters(amtronRegPower+2, 2)
+	l2, err := wb.conn.ReadHoldingRegisters(amtronProfRegPower+2, 2)
 	if err != nil {
 		return 0, err
 	}
 	var l2Power uint32 = toUint32(l2)
 
-	l3, err := wb.conn.ReadHoldingRegisters(amtronRegPower+4, 2)
+	l3, err := wb.conn.ReadHoldingRegisters(amtronProfRegPower+4, 2)
 	if err != nil {
 		return 0, err
 	}
