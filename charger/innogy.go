@@ -2,7 +2,7 @@ package charger
 
 // LICENSE
 
-// Copyright (c) 2019-2021 andig
+// Copyright (c) 2019-2022 andig
 
 // This module is NOT covered by the MIT license. All rights reserved.
 
@@ -43,6 +43,8 @@ var (
 	igyRegCurrents    = []uint16{1006, 1008, 1010} // current readings per phase
 )
 
+// https://www.innogy-emobility.com/content/dam/revu-global/emobility-solutions/neue-website-feb-2021/downloadcenter/digital-services/eld_instman_modbustcpde.pdf
+
 // Innogy is an api.Charger implementation for Innogy eBox wallboxes.
 type Innogy struct {
 	conn *modbus.Connection
@@ -70,7 +72,7 @@ func NewInnogyFromConfig(other map[string]interface{}) (api.Charger, error) {
 
 // NewInnogy creates a Innogy charger
 func NewInnogy(uri string, id uint8) (*Innogy, error) {
-	conn, err := modbus.NewConnection(uri, "", "", 0, modbus.TcpFormat, id)
+	conn, err := modbus.NewConnection(uri, "", "", 0, modbus.Tcp, id)
 	if err != nil {
 		return nil, err
 	}

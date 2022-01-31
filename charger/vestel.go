@@ -2,7 +2,7 @@ package charger
 
 // LICENSE
 
-// Copyright (c) 2019-2021 andig
+// Copyright (c) 2019-2022 andig
 
 // This module is NOT covered by the MIT license. All rights reserved.
 
@@ -76,7 +76,7 @@ func NewVestelFromConfig(other map[string]interface{}) (api.Charger, error) {
 
 // NewVestel creates a Vestel charger
 func NewVestel(uri string, slaveID uint8) (*Vestel, error) {
-	conn, err := modbus.NewConnection(uri, "", "", 0, modbus.TcpFormat, slaveID)
+	conn, err := modbus.NewConnection(uri, "", "", 0, modbus.Tcp, slaveID)
 	if err != nil {
 		return nil, err
 	}
