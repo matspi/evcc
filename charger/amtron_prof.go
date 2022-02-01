@@ -8,15 +8,13 @@ import (
 	"github.com/evcc-io/evcc/api"
 	"github.com/evcc-io/evcc/util"
 	"github.com/evcc-io/evcc/util/modbus"
-	"github.com/influxdata/influxdb-client-go/v2/internal/log"
 )
 
 // AmtronProfessional Professional charger implementation
 type AmtronProfessional struct {
 	log     *util.Logger
 	conn    *modbus.Connection
-	enabled bool
-	current int64
+	current uint64
 }
 
 const (
@@ -58,7 +56,6 @@ func NewAmtronProfessional(uri, device, comset string, baudrate int, slaveID uin
 	wb := &AmtronProfessional{
 		log:     log,
 		conn:    conn,
-		enabled: true,
 		current: 6,
 	}
 
@@ -92,21 +89,24 @@ func (wb *AmtronProfessional) Status() (api.ChargeStatus, error) {
 
 // Enabled implements the api.Charger interface
 func (wb *AmtronProfessional) Enabled() (bool, error) {
-	wb.log.DEBUG.Println("Enabled(), about to return ", wb.enabled, wb.current)
-	log.Debug("Asking for Enabled")
-	return wb.enabled, nil
+	b, err := wb.conn.ReadHoldingRegisters(amtronRegAmpsConfig, 1)
+	if err != nil {
+		return false, err
+	}
+
+	var value uint16 = binary.LittleEndian.Uint16(b)
+
+	return value > 0, nil
 }
 
 // Enable implements the api.Charger interface
 func (wb *AmtronProfessional) Enable(enable bool) error {
-	wb.log.DEBUG.Println("Enable ", enable, wb.enabled, wb.current)
+	wb.log.DEBUG.Println("Enable ", enable, wb.current)
 	var err error
-	if !enable {
-		err = wb.MaxCurrent(0)
-		wb.enabled = false
+	if enable {
+		err = wb.MaxCurrent(int64(wb.current))
 	} else {
-		err = wb.MaxCurrent(wb.current)
-		wb.enabled = true
+		err = wb.MaxCurrent(0)
 	}
 
 	return err
@@ -114,14 +114,21 @@ func (wb *AmtronProfessional) Enable(enable bool) error {
 
 // MaxCurrent implements the api.Charger interface
 func (wb *AmtronProfessional) MaxCurrent(current int64) error {
-	wb.log.DEBUG.Println("MaxCurrent ", current, wb.enabled, wb.current)
-	wb.current = current
-	if wb.enabled {
-		_, err := wb.conn.WriteSingleRegister(amtronProfRegAmpsConfig, uint16(current))
-		return err
+	return wb.MaxCurrentMillis(float64(current))
+}
+
+var _ api.ChargerEx = (*AmtronProfessional)(nil)
+
+// MaxCurrentMillis implements the api.ChargerEx interface
+func (wb *AmtronProfessional) MaxCurrentMillis(current_ float64) error {
+	var current uint64
+	current = uint64(current_)
+	_, err := wb.conn.WriteSingleRegister(amtronProfRegAmpsConfig, uint16(current))
+	if err == nil {
+		wb.current = current
 	}
 
-	return nil
+	return err
 }
 
 var _ api.MeterEnergy = (*AmtronProfessional)(nil)
