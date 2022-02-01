@@ -8,10 +8,12 @@ import (
 	"github.com/evcc-io/evcc/api"
 	"github.com/evcc-io/evcc/util"
 	"github.com/evcc-io/evcc/util/modbus"
+	"github.com/influxdata/influxdb-client-go/v2/internal/log"
 )
 
 // AmtronProfessional Professional charger implementation
 type AmtronProfessional struct {
+	log     *util.Logger
 	conn    *modbus.Connection
 	enabled bool
 	current int64
@@ -54,6 +56,7 @@ func NewAmtronProfessional(uri, device, comset string, baudrate int, slaveID uin
 	conn.Logger(log.TRACE)
 
 	wb := &AmtronProfessional{
+		log:     log,
 		conn:    conn,
 		enabled: true,
 		current: 6,
@@ -89,11 +92,14 @@ func (wb *AmtronProfessional) Status() (api.ChargeStatus, error) {
 
 // Enabled implements the api.Charger interface
 func (wb *AmtronProfessional) Enabled() (bool, error) {
+	wb.log.DEBUG.Println("Enabled(), about to return ", wb.enabled, wb.current)
+	log.Debug("Asking for Enabled")
 	return wb.enabled, nil
 }
 
 // Enable implements the api.Charger interface
 func (wb *AmtronProfessional) Enable(enable bool) error {
+	wb.log.DEBUG.Println("Enable ", enable, wb.enabled, wb.current)
 	var err error
 	if !enable {
 		err = wb.MaxCurrent(0)
@@ -108,6 +114,7 @@ func (wb *AmtronProfessional) Enable(enable bool) error {
 
 // MaxCurrent implements the api.Charger interface
 func (wb *AmtronProfessional) MaxCurrent(current int64) error {
+	wb.log.DEBUG.Println("MaxCurrent ", current, wb.enabled, wb.current)
 	wb.current = current
 	if wb.enabled {
 		_, err := wb.conn.WriteSingleRegister(amtronProfRegAmpsConfig, uint16(current))
