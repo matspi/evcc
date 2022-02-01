@@ -14,7 +14,7 @@ import (
 type AmtronProfessional struct {
 	log     *util.Logger
 	conn    *modbus.Connection
-	current uint64
+	current int64
 }
 
 const (
@@ -64,6 +64,7 @@ func NewAmtronProfessional(uri, device, comset string, baudrate int, slaveID uin
 
 // Status implements the api.Charger interface
 func (wb *AmtronProfessional) Status() (api.ChargeStatus, error) {
+	wb.log.DEBUG.Println("Status")
 	b, err := wb.conn.ReadHoldingRegisters(amtronProfRegStatus, 1)
 	if err != nil {
 		return api.StatusNone, err
@@ -89,7 +90,8 @@ func (wb *AmtronProfessional) Status() (api.ChargeStatus, error) {
 
 // Enabled implements the api.Charger interface
 func (wb *AmtronProfessional) Enabled() (bool, error) {
-	b, err := wb.conn.ReadHoldingRegisters(amtronRegAmpsConfig, 1)
+	wb.log.DEBUG.Println("Enabled")
+	b, err := wb.conn.ReadHoldingRegisters(amtronProfRegAmpsConfig, 1)
 	if err != nil {
 		return false, err
 	}
@@ -114,20 +116,11 @@ func (wb *AmtronProfessional) Enable(enable bool) error {
 
 // MaxCurrent implements the api.Charger interface
 func (wb *AmtronProfessional) MaxCurrent(current int64) error {
-	return wb.MaxCurrentMillis(float64(current))
-}
-
-var _ api.ChargerEx = (*AmtronProfessional)(nil)
-
-// MaxCurrentMillis implements the api.ChargerEx interface
-func (wb *AmtronProfessional) MaxCurrentMillis(current_ float64) error {
-	var current uint64
-	current = uint64(current_)
+	wb.log.DEBUG.Println("MaxCurrent")
 	_, err := wb.conn.WriteSingleRegister(amtronProfRegAmpsConfig, uint16(current))
 	if err == nil {
 		wb.current = current
 	}
-
 	return err
 }
 
