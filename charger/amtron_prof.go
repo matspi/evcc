@@ -96,7 +96,7 @@ func (wb *AmtronProfessional) Enabled() (bool, error) {
 		return false, err
 	}
 
-	var value uint16 = binary.LittleEndian.Uint16(b)
+	var value uint16 = binary.BigEndian.Uint16(b)
 
 	wb.log.DEBUG.Println("Read from box: ", value)
 
