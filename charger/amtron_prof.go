@@ -98,7 +98,9 @@ func (wb *AmtronProfessional) Enabled() (bool, error) {
 
 	var value uint16 = binary.LittleEndian.Uint16(b)
 
-	return value > 0, nil
+	wb.log.DEBUG.Println("Read from box: ", value)
+
+	return value >= 6, nil
 }
 
 // Enable implements the api.Charger interface
