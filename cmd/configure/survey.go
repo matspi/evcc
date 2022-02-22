@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/evcc-io/evcc/api"
 	"github.com/evcc-io/evcc/util/templates"
 	"github.com/thoas/go-funk"
+	stripmd "github.com/writeas/go-strip-markdown"
 )
 
 // surveyAskOne asks the user for input
@@ -38,7 +40,7 @@ func (c *CmdConfigure) askConfigFailureNextStep() bool {
 }
 
 // select item from list
-func (c *CmdConfigure) askSelection(message string, items []string) (error, string, int) {
+func (c *CmdConfigure) askSelection(message string, items []string) (string, int, error) {
 	selection := ""
 	prompt := &survey.Select{
 		Message: message,
@@ -46,19 +48,11 @@ func (c *CmdConfigure) askSelection(message string, items []string) (error, stri
 	}
 
 	err := c.surveyAskOne(prompt, &selection)
-	if err != nil {
-		return err, "", 0
+	if err == nil {
+		return selection, funk.IndexOf(items, selection), nil
 	}
 
-	var selectedIndex int
-	for index, item := range items {
-		if item == selection {
-			selectedIndex = index
-			break
-		}
-	}
-
-	return err, selection, selectedIndex
+	return "", 0, err
 }
 
 // selectItem selects item from list
@@ -77,7 +71,7 @@ func (c *CmdConfigure) selectItem(deviceCategory DeviceCategory) templates.Templ
 	}
 
 	text := fmt.Sprintf("%s %s %s:", c.localizedString("Choose", nil), DeviceCategories[deviceCategory].article, DeviceCategories[deviceCategory].title)
-	err, _, selected := c.askSelection(text, items)
+	_, selected, err := c.askSelection(text, items)
 	if err != nil {
 		c.log.FATAL.Fatal(err)
 	}
@@ -87,7 +81,7 @@ func (c *CmdConfigure) selectItem(deviceCategory DeviceCategory) templates.Templ
 
 // askChoice selects item from list
 func (c *CmdConfigure) askChoice(label string, choices []string) (int, string) {
-	err, selection, index := c.askSelection(label, choices)
+	selection, index, err := c.askSelection(label, choices)
 	if err != nil {
 		c.log.FATAL.Fatal(err)
 	}
@@ -114,6 +108,7 @@ type question struct {
 	label, help                    string
 	defaultValue, exampleValue     string
 	invalidValues                  []string
+	validValues                    []string
 	valueType                      string
 	minNumberValue, maxNumberValue int64
 	mask, required                 bool
@@ -134,7 +129,11 @@ func (c *CmdConfigure) askValue(q question) string {
 	if q.valueType == templates.ParamValueTypeBool {
 		label := q.label
 		if q.help != "" {
-			label = q.help
+			helpDescription := stripmd.Strip(q.help)
+			fmt.Println("-------------------------------------------------")
+			fmt.Println(c.localizedString("Value_Help", nil))
+			fmt.Println(helpDescription)
+			fmt.Println("-------------------------------------------------")
 		}
 
 		return c.askBoolValue(label)
@@ -166,14 +165,19 @@ func (c *CmdConfigure) askValue(q question) string {
 			return errors.New(c.localizedString("ValueError_Used", nil))
 		}
 
+		if q.validValues != nil && !funk.ContainsString(q.validValues, value) {
+			return errors.New(c.localizedString("ValueError_Invalid", nil))
+		}
+
 		if q.required && len(value) == 0 {
 			return errors.New(c.localizedString("ValueError_Empty", nil))
 		}
 
+		if !q.required && len(value) == 0 {
+			return nil
+		}
+
 		if q.valueType == templates.ParamValueTypeFloat {
-			if value == "" && !q.required {
-				return nil
-			}
 			_, err := strconv.ParseFloat(value, 64)
 			if err != nil {
 				return errors.New(c.localizedString("ValueError_Float", nil))
@@ -181,10 +185,6 @@ func (c *CmdConfigure) askValue(q question) string {
 		}
 
 		if q.valueType == templates.ParamValueTypeNumber {
-			if value == "" && !q.required {
-				return nil
-			}
-
 			intValue, err := strconv.ParseInt(value, 10, 64)
 			if err != nil {
 				return errors.New(c.localizedString("ValueError_Number", nil))
@@ -194,6 +194,13 @@ func (c *CmdConfigure) askValue(q question) string {
 			}
 			if q.maxNumberValue != 0 && intValue > q.maxNumberValue {
 				return errors.New(c.localizedString("ValueError_NumberBiggerThanMax", localizeMap{"Max": q.maxNumberValue}))
+			}
+		}
+
+		if q.valueType == templates.ParamValueTypeDuration {
+			_, err := time.ParseDuration(value)
+			if err != nil {
+				return errors.New(c.localizedString("ValueError_Duration", nil))
 			}
 		}
 
