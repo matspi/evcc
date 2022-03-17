@@ -119,14 +119,11 @@ func (wb *AmtronProfessional) Enable(enable bool) error {
 // MaxCurrent implements the api.Charger interface
 func (wb *AmtronProfessional) MaxCurrent(current int64) error {
 	wb.log.DEBUG.Println("MaxCurrent")
-	if current < 6 {
-		return fmt.Errorf("invalid current %d", current)
-	}
-	curr := uint16(current)
-
-	_, err := wb.conn.WriteSingleRegister(amtronProfRegAmpsConfig, curr)
+	_, err := wb.conn.WriteSingleRegister(amtronProfRegAmpsConfig, uint16(current))
 	if err == nil {
-		wb.current = curr
+		if current > 0 {
+			wb.current = uint16(current)
+		}
 	}
 	return err
 }
