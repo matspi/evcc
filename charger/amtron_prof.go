@@ -104,7 +104,7 @@ func (wb *AmtronProfessional) Enabled() (bool, error) {
 }
 
 // Enable implements the api.Charger interface
- func (wb *Amtron) Enable(enable bool) error {
+ func (wb *AmtronProfessional) Enable(enable bool) error {
  	var u uint16
  	if enable {
  		u = 0x04
