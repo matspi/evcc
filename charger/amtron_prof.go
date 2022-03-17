@@ -100,21 +100,20 @@ func (wb *AmtronProfessional) Enabled() (bool, error) {
 
 	wb.log.DEBUG.Println("Read from box: ", value)
 
-	return value >= 6, nil
+	return value != 0, nil
 }
 
 // Enable implements the api.Charger interface
-func (wb *AmtronProfessional) Enable(enable bool) error {
-	wb.log.DEBUG.Println("Enable ", enable, wb.current)
-	var err error
-	if enable {
-		err = wb.MaxCurrent(int64(wb.current))
-	} else {
-		err = wb.MaxCurrent(0)
-	}
-
-	return err
-}
+ func (wb *Amtron) Enable(enable bool) error {
+ 	var u uint16
+ 	if enable {
+ 		u = 0x04
+ 		u = wb.current
+ 	}
+	 
+ 	_, err := wb.conn.WriteSingleRegister(amtronProfRegCurrent, u)
+ 	return err
+ }
 
 // MaxCurrent implements the api.Charger interface
 func (wb *AmtronProfessional) MaxCurrent(current int64) error {
