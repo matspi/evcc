@@ -14,7 +14,7 @@ import (
 type AmtronProfessional struct {
 	log     *util.Logger
 	conn    *modbus.Connection
-	current int64
+	current uint16
 }
 
 const (
@@ -104,23 +104,27 @@ func (wb *AmtronProfessional) Enabled() (bool, error) {
 }
 
 // Enable implements the api.Charger interface
- func (wb *AmtronProfessional) Enable(enable bool) error {
- 	var u uint16
- 	if enable {
- 		u = 0x04
- 		u = wb.current
- 	}
-	 
- 	_, err := wb.conn.WriteSingleRegister(amtronProfRegCurrent, u)
- 	return err
- }
+func (wb *AmtronProfessional) Enable(enable bool) error {
+	var u uint16
+	if enable {
+		u = wb.current
+	}
+
+	_, err := wb.conn.WriteSingleRegister(amtronProfRegCurrent, u)
+	return err
+}
 
 // MaxCurrent implements the api.Charger interface
 func (wb *AmtronProfessional) MaxCurrent(current int64) error {
 	wb.log.DEBUG.Println("MaxCurrent")
-	_, err := wb.conn.WriteSingleRegister(amtronProfRegAmpsConfig, uint16(current))
+	if current < 6 {
+		return fmt.Errorf("invalid current %d", current)
+	}
+	curr := uint16(current)
+
+	_, err := wb.conn.WriteSingleRegister(amtronProfRegAmpsConfig, curr)
 	if err == nil {
-		wb.current = current
+		wb.current = curr
 	}
 	return err
 }
