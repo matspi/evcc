@@ -105,12 +105,14 @@ func (wb *AmtronProfessional) Enabled() (bool, error) {
 
 // Enable implements the api.Charger interface
 func (wb *AmtronProfessional) Enable(enable bool) error {
-	var u uint16
+	wb.log.DEBUG.Println("Enable ", enable, wb.current)
+	var err error
 	if enable {
-		u = wb.current
+		err = wb.MaxCurrent(int64(wb.current))
+	} else {
+		err = wb.MaxCurrent(0)
 	}
 
-	_, err := wb.conn.WriteSingleRegister(amtronProfRegCurrent, u)
 	return err
 }
 
