@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/evcc-io/evcc/util"
@@ -23,6 +24,12 @@ const (
 
 	CoilOn uint16 = 0xFF00
 )
+
+// Settings contains the ModBus TCP settings
+type TcpSettings struct {
+	URI string
+	ID  uint8
+}
 
 // Settings contains the ModBus settings
 type Settings struct {
@@ -140,9 +147,15 @@ func (mb *Connection) ReadFIFOQueue(address uint16) (results []byte, err error) 
 	return mb.handle(mb.conn.ModbusClient().ReadFIFOQueue(address))
 }
 
-var connections = make(map[string]meters.Connection)
+var (
+	connections = make(map[string]meters.Connection)
+	mu          sync.Mutex
+)
 
 func registeredConnection(key string, newConn meters.Connection) meters.Connection {
+	mu.Lock()
+	defer mu.Unlock()
+
 	if conn, ok := connections[key]; ok {
 		return conn
 	}
@@ -314,6 +327,15 @@ func RegisterOperation(r Register) (rs485.Operation, error) {
 	}
 
 	return op, nil
+}
+
+func RTUStringSwapped(b []byte) string {
+	s := new(strings.Builder)
+	for i := 0; i < len(b); i += 2 {
+		s.WriteByte(b[i+1])
+		s.WriteByte(b[i])
+	}
+	return s.String()
 }
 
 // SunSpecOperation is a sunspec modbus operation

@@ -3,9 +3,11 @@ package charger
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/evcc-io/evcc/api"
+	"github.com/evcc-io/evcc/charger/openwb/pro"
 	"github.com/evcc-io/evcc/util"
 	"github.com/evcc-io/evcc/util/request"
 )
@@ -16,52 +18,40 @@ func init() {
 
 // https://openwb.de/main/?page_id=771
 
-type openwbProStatus struct {
-	Date           string
-	Timestamp      int64
-	Powers         []float64
-	PowerAll       float64 `json:"power_all"`
-	Currents       []float64
-	Imported       float64
-	Exported       float64
-	PlugState      bool   `json:"plug_state"`
-	ChargeState    bool   `json:"charge_state"`
-	PhasesActual   int    `json:"phases_actual"`
-	PhasesTarget   int    `json:"phases_target"`
-	PhasesInUse    int    `json:"phases_in_use"`
-	OfferedCurrent int    `json:"offered_current"`
-	EvseSignaling  string `json:"evse_signaling"`
-	Serial         string
-}
-
 // OpenWBPro charger implementation
 type OpenWBPro struct {
 	*request.Helper
+	mu      sync.Mutex
 	uri     string
 	current float64
+	status  pro.Status
+	updated time.Time
+	cache   time.Duration
 }
 
 // NewOpenWBProFromConfig creates a OpenWBPro charger from generic config
 func NewOpenWBProFromConfig(other map[string]interface{}) (api.Charger, error) {
 	cc := struct {
-		URI string
+		URI   string
+		Cache time.Duration
 	}{}
 
 	if err := util.DecodeOther(other, &cc); err != nil {
 		return nil, err
 	}
 
-	return NewOpenWBPro(util.DefaultScheme(cc.URI, "http"))
+	return NewOpenWBPro(util.DefaultScheme(cc.URI, "http"), cc.Cache)
 }
 
 // NewOpenWBPro creates OpenWBPro charger
-func NewOpenWBPro(uri string) (*OpenWBPro, error) {
-	log := util.NewLogger("openwbpro")
+func NewOpenWBPro(uri string, cache time.Duration) (*OpenWBPro, error) {
+	log := util.NewLogger("owbpro")
 
 	wb := &OpenWBPro{
 		Helper:  request.NewHelper(log),
 		uri:     strings.TrimRight(uri, "/"),
 		current: 6, // 6A defined value
+		cache:   cache,
 	}
 
 	go wb.hearbeat(log)
@@ -77,19 +67,34 @@ func (wb *OpenWBPro) hearbeat(log *util.Logger) {
 	}
 }
 
-func (wb *OpenWBPro) get() (openwbProStatus, error) {
-	var res openwbProStatus
+func (wb *OpenWBPro) get() (pro.Status, error) {
+	wb.mu.Lock()
+	defer wb.mu.Unlock()
+
+	if time.Since(wb.updated) < wb.cache {
+		return wb.status, nil
+	}
+
+	var res pro.Status
 	uri := fmt.Sprintf("%s/%s", wb.uri, "connect.php")
 	err := wb.GetJSON(uri, &res)
+	if err == nil {
+		wb.updated = time.Now()
+		wb.status = res
+	}
+
 	return res, err
 }
 
 func (wb *OpenWBPro) set(payload string) error {
 	uri := fmt.Sprintf("%s/%s", wb.uri, "connect.php")
-	resp, err := wb.Post(uri, "text/plain", strings.NewReader(payload))
+	resp, err := wb.Post(uri, "application/x-www-form-urlencoded", strings.NewReader(payload))
 	if err == nil {
 		resp.Body.Close()
 	}
+	wb.mu.Lock()
+	wb.updated = time.Time{}
+	wb.mu.Unlock()
 	return err
 }
 
@@ -180,4 +185,16 @@ var _ api.ChargePhases = (*OpenWBPro)(nil)
 // Phases1p3p implements the api.ChargePhases interface
 func (wb *OpenWBPro) Phases1p3p(phases int) error {
 	return wb.set(fmt.Sprintf("phasetarget=%d", phases))
+}
+
+var _ api.Identifier = (*OpenWBPro)(nil)
+
+// Identify implements the api.Identifier interface
+func (wb *OpenWBPro) Identify() (string, error) {
+	res, err := wb.get()
+	if err != nil || res.VehicleID == "--" {
+		return "", err
+	}
+
+	return res.VehicleID, err
 }
