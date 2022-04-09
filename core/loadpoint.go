@@ -16,7 +16,7 @@ import (
 	"github.com/evcc-io/evcc/provider"
 	"github.com/evcc-io/evcc/push"
 	"github.com/evcc-io/evcc/util"
-	"github.com/thoas/go-funk"
+	"golang.org/x/exp/slices"
 
 	evbus "github.com/asaskevich/EventBus"
 	"github.com/avast/retry-go/v3"
@@ -46,6 +46,8 @@ const (
 	minActiveCurrent      = 1.0 // minimum current at which a phase is treated as active
 	vehicleDetectInterval = 3 * time.Minute
 	vehicleDetectDuration = 10 * time.Minute
+
+	guardGracePeriod = 10 * time.Second // allow out of sync during this timespan
 )
 
 // elapsed is the time an expired timer will be set to
@@ -253,9 +255,11 @@ func NewLoadPoint(log *util.Logger) *LoadPoint {
 		Mode:          api.ModeOff,
 		Phases:        3,
 		status:        api.StatusNone,
-		MinCurrent:    6,                              // A
-		MaxCurrent:    16,                             // A
-		SoC:           SoCConfig{Min: 0, Target: 100}, // %
+		MinCurrent:    6,                                                     // A
+		MaxCurrent:    16,                                                    // A
+		SoC:           SoCConfig{Min: 0, Target: 100},                        // %
+		Enable:        ThresholdConfig{Delay: time.Minute, Threshold: 0},     // t, W
+		Disable:       ThresholdConfig{Delay: 3 * time.Minute, Threshold: 0}, // t, W
 		GuardDuration: 5 * time.Minute,
 		progress:      NewProgress(0, 10), // soc progress indicator
 	}
@@ -563,7 +567,9 @@ func (lp *LoadPoint) syncCharger() {
 	enabled, err := lp.charger.Enabled()
 	if err == nil {
 		if enabled != lp.enabled {
-			lp.log.WARN.Printf("charger out of sync: expected %vd, got %vd", status[lp.enabled], status[enabled])
+			if time.Since(lp.guardUpdated) > guardGracePeriod {
+				lp.log.WARN.Printf("charger out of sync: expected %vd, got %vd", status[lp.enabled], status[enabled])
+			}
 			err = lp.charger.Enable(lp.enabled)
 		}
 
@@ -607,7 +613,7 @@ func (lp *LoadPoint) setLimit(chargeCurrent float64, force bool) error {
 
 		// remote stop
 		// TODO https://github.com/evcc-io/evcc/discussions/1929
-		// if car, ok := lp.vehicle.(api.VehicleStopCharge); !enabled && ok {
+		// if car, ok := lp.vehicle.(api.VehicleChargeController); !enabled && ok {
 		// 	// log but don't propagate
 		// 	if err := car.StopCharge(); err != nil {
 		// 		lp.log.ERROR.Printf("vehicle remote charge stop: %v", err)
@@ -635,7 +641,7 @@ func (lp *LoadPoint) setLimit(chargeCurrent float64, force bool) error {
 
 		// remote start
 		// TODO https://github.com/evcc-io/evcc/discussions/1929
-		// if car, ok := lp.vehicle.(api.VehicleStartCharge); enabled && ok {
+		// if car, ok := lp.vehicle.(api.VehicleChargeController); enabled && ok {
 		// 	// log but don't propagate
 		// 	if err := car.StartCharge(); err != nil {
 		// 		lp.log.ERROR.Printf("vehicle remote charge start: %v", err)
@@ -754,7 +760,7 @@ func (lp *LoadPoint) identifyVehicle() {
 func (lp *LoadPoint) selectVehicleByID(id string) api.Vehicle {
 	// find exact match
 	for _, vehicle := range lp.vehicles {
-		if funk.ContainsString(vehicle.Identifiers(), id) {
+		if slices.Contains(vehicle.Identifiers(), id) {
 			return vehicle
 		}
 	}

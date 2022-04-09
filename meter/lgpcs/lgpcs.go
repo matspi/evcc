@@ -41,15 +41,14 @@ type EssData struct {
 
 type Com struct {
 	*request.Helper
-	uri        string // URI address of the LG ESS inverter - e.g. "https://192.168.1.28"
-	password   string // registration number of the LG ESS Inverter - e.g. "DE2001..."
-	authKey    string // auth_key returned during login and renewed with new login after expiration
-	cachedData func() (interface{}, error)
+	uri      string // URI address of the LG ESS inverter - e.g. "https://192.168.1.28"
+	password string // registration number of the LG ESS Inverter - e.g. "DE2001..."
+	authKey  string // auth_key returned during login and renewed with new login after expiration
+	dataG    func() (EssData, error)
 }
 
 var (
 	once     sync.Once
-	mu       sync.Mutex
 	instance *Com
 )
 
@@ -60,33 +59,24 @@ func GetInstance(uri, password string, cache time.Duration) (*Com, error) {
 	var err error
 	once.Do(func() {
 		log := util.NewLogger("lgess")
-		inst := &Com{
+		instance = &Com{
 			Helper:   request.NewHelper(log),
 			uri:      uri,
 			password: password,
 		}
 
 		// ignore the self signed certificate
-		inst.Client.Transport = request.NewTripper(log, transport.Insecure())
+		instance.Client.Transport = request.NewTripper(log, transport.Insecure())
 
 		// caches the data access for the "cache" time duration
 		// sends a new request to the pcs if the cache is expired and Data() requested
-		inst.cachedData = provider.NewCached(func() (interface{}, error) {
-			return inst.refreshData()
-		}, cache).InterfaceGetter()
+		instance.dataG = provider.Cached(instance.refreshData, cache)
 
 		// do first login if no authKey exists and uri and password exist
-		if inst.authKey == "" && inst.uri != "" && inst.password != "" {
+		if instance.authKey == "" && instance.uri != "" && instance.password != "" {
 			err = instance.Login()
 		}
-
-		mu.Lock()
-		instance = inst
-		mu.Unlock()
 	})
-
-	mu.Lock()
-	defer mu.Unlock()
 
 	// check if different uris are provided
 	if uri != "" && instance.uri != uri {
@@ -135,8 +125,7 @@ func (m *Com) Login() error {
 
 // Data gives the data read from the pcs.
 func (m *Com) Data() (EssData, error) {
-	res, err := m.cachedData()
-	return res.(EssData), err
+	return m.dataG()
 }
 
 // refreshData reads data from lgess pcs. Tries to re-login if "405" auth_key expired is returned
