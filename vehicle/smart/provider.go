@@ -1,6 +1,7 @@
 package smart
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/evcc-io/evcc/api"
@@ -30,11 +31,14 @@ func NewProvider(log *util.Logger, api *API, vin string, expiry, cache time.Dura
 	return v
 }
 
-func (v *Provider) status(statusG func() (StatusResponse, error), refreshG func() (StatusResponse, error)) (StatusResponse, error) {
+func (v *Provider) status(statusG, refreshG func() (StatusResponse, error)) (StatusResponse, error) {
 	res, err := statusG()
 
-	// if err == nil && res.Status.StatusData.Soc.Ts.Time.Add(v.expiry).Before(time.Now()) {
+	// if ts := res.Status.Data.Soc.Ts.Time; err == nil && ts.Add(v.expiry).Before(time.Now()) {
+	// 	fmt.Println("--------------------------", ts)
 	// 	res, err = refreshG()
+	// 	ts := res.Status.Data.Soc.Ts.Time
+	// 	fmt.Println("--------------------------", ts)
 	// }
 
 	return res, err
@@ -43,7 +47,29 @@ func (v *Provider) status(statusG func() (StatusResponse, error), refreshG func(
 // SoC implements the api.Vehicle interface
 func (v *Provider) SoC() (float64, error) {
 	res, err := v.statusG()
-	return res.Status.StatusData.Soc.Value, err
+	return res.Status.Data.Soc.Value, err
+}
+
+var _ api.ChargeState = (*Provider)(nil)
+
+// Range implements the api.VehicleRange interface
+func (v *Provider) Status() (api.ChargeStatus, error) {
+	res, err := v.statusG()
+
+	switch v := res.PreCond.Data.ChargingStatus.Status; v {
+	case 0:
+		if res.PreCond.Data.ChargingActive.Value {
+			return api.StatusC, err
+		}
+		return api.StatusB, err
+	case 3:
+		return api.StatusA, err
+	default:
+		if err == nil {
+			err = fmt.Errorf("unknown status: %d", v)
+		}
+		return api.StatusNone, err
+	}
 }
 
 var _ api.VehicleRange = (*Provider)(nil)
@@ -51,7 +77,7 @@ var _ api.VehicleRange = (*Provider)(nil)
 // Range implements the api.VehicleRange interface
 func (v *Provider) Range() (int64, error) {
 	res, err := v.statusG()
-	return int64(res.Status.StatusData.RangeElectric.Value), err
+	return int64(res.Status.Data.RangeElectric.Value), err
 }
 
 var _ api.VehicleOdometer = (*Provider)(nil)
@@ -59,5 +85,5 @@ var _ api.VehicleOdometer = (*Provider)(nil)
 // Odometer implements the Provider.VehicleOdometer interface
 func (v *Provider) Odometer() (float64, error) {
 	res, err := v.statusG()
-	return res.Status.StatusData.Odo.Value, err
+	return res.Status.Data.Odo.Value, err
 }

@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -113,11 +112,11 @@ func tronityAuthorize(addr string, oc *oauth2.Config) (*oauth2.Token, error) {
 }
 
 func tronityToken(conf config, vehicleConf qualifiedConfig) (*oauth2.Token, error) {
-	cc := struct {
+	var cc struct {
 		Credentials vehicle.ClientCredentials
 		RedirectURI string
 		Other       map[string]interface{} `mapstructure:",remain"`
-	}{}
+	}
 
 	if err := util.DecodeOther(vehicleConf.Other, &cc); err != nil {
 		return nil, err
@@ -133,13 +132,8 @@ func tronityToken(conf config, vehicleConf qualifiedConfig) (*oauth2.Token, erro
 	}
 
 	if oc.RedirectURL = cc.RedirectURI; oc.RedirectURL == "" {
-		_, port, err := net.SplitHostPort(conf.URI)
-		if err != nil {
-			return nil, err
-		}
-
-		oc.RedirectURL = fmt.Sprintf("http://%s/auth/tronity", net.JoinHostPort("localhost", port))
+		oc.RedirectURL = fmt.Sprintf("%s/auth/tronity", conf.Network.URI())
 	}
 
-	return tronityAuthorize(conf.URI, oc)
+	return tronityAuthorize(conf.Network.HostPort(), oc)
 }

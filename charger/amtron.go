@@ -26,6 +26,7 @@ import (
 	"github.com/evcc-io/evcc/util"
 	"github.com/evcc-io/evcc/util/modbus"
 	"github.com/evcc-io/evcc/util/sponsor"
+	"github.com/volkszaehler/mbmd/encoding"
 	"github.com/volkszaehler/mbmd/meters/rs485"
 )
 
@@ -54,7 +55,7 @@ func init() {
 // NewAmtronFromConfig creates a Mennekes Amtron charger from generic config
 func NewAmtronFromConfig(other map[string]interface{}) (api.Charger, error) {
 	cc := modbus.TcpSettings{
-		ID: 0xff,
+		ID: 255,
 	}
 
 	if err := util.DecodeOther(other, &cc); err != nil {
@@ -177,7 +178,7 @@ var _ api.Diagnosis = (*Amtron)(nil)
 // Diagnose implements the api.Diagnosis interface
 func (wb *Amtron) Diagnose() {
 	if b, err := wb.conn.ReadInputRegisters(amtronRegName, 11); err == nil {
-		fmt.Printf("Name: %s\n", modbus.RTUStringSwapped(b))
+		fmt.Printf("Name: %s\n", encoding.StringLsbFirst(b))
 	}
 
 	if b, err := wb.conn.ReadInputRegisters(amtronRegPhases, 1); err == nil {

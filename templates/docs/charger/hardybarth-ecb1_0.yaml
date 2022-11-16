@@ -1,6 +1,7 @@
 product:
   brand: HardyBarth
-  description: cPH1 eCB1 Controller
+  description: cPH1
+requirements: ["sponsorship"]
 render:
   - default: |
       type: template

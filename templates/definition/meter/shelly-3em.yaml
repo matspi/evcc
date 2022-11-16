@@ -3,7 +3,6 @@ products:
   - brand: Shelly
     description:
       generic: 3EM
-group: sockets
 params:
   - name: usage
     choice: ["grid", "pv", "charge"]
@@ -14,7 +13,7 @@ render: |
     source: http
     uri: http://{{ .host }}/status
     jq: .emeters | map(.power) | add
-  {{if eq .usage "grid" -}}
+  {{- if or (eq .usage "charge") (eq .usage "grid") }}
   energy:
     source: http
     uri: http://{{ .host }}/status

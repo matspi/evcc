@@ -6,12 +6,15 @@ module.exports = {
   },
   extends: [
     "eslint:recommended",
-    "plugin:vue/recommended",
+    "plugin:vue/vue3-recommended",
     "plugin:prettier/recommended",
     "prettier",
   ],
+  parser: "vue-eslint-parser",
   rules: {
     "vue/require-default-prop": "off",
     "vue/attribute-hyphenation": "off",
+    "vue/multi-word-component-names": "off",
+    "vue/no-reserved-component-names": "off",
   },
 };

@@ -1,42 +1,15 @@
 <template>
-	<div>
-		<div class="mb-3">{{ $t("main.mode.title") }}</div>
-		<div class="btn-group w-100" role="group">
-			<button
-				type="button"
-				class="btn btn-outline-secondary"
-				:class="{ active: mode == 'off' }"
-				@click="setTargetMode('off')"
-			>
-				{{ $t("main.mode.stop") }}
-			</button>
-			<button
-				type="button"
-				class="btn btn-outline-secondary"
-				:class="{ active: mode == 'now' }"
-				@click="setTargetMode('now')"
-			>
-				{{ $t("main.mode.now") }}
-			</button>
-			<button
-				type="button"
-				class="btn btn-outline-secondary"
-				:class="{ active: mode == 'minpv' }"
-				@click="setTargetMode('minpv')"
-			>
-				<span class="d-inline d-sm-none"> {{ $t("main.mode.minpvShort") }} </span>
-				<span class="d-none d-sm-inline"> {{ $t("main.mode.minpvLong") }} </span>
-			</button>
-			<button
-				type="button"
-				class="btn btn-outline-secondary"
-				:class="{ active: mode == 'pv' }"
-				@click="setTargetMode('pv')"
-			>
-				<span class="d-inline d-sm-none"> {{ $t("main.mode.pvShort") }} </span>
-				<span class="d-none d-sm-inline"> {{ $t("main.mode.pvLong") }} </span>
-			</button>
-		</div>
+	<div class="mode-group border d-inline-flex" role="group">
+		<button
+			v-for="m in modes"
+			:key="m"
+			type="button"
+			class="btn flex-grow-1 flex-shrink-1"
+			:class="{ active: isActive(m) }"
+			@click="setTargetMode(m)"
+		>
+			{{ $t(`main.mode.${m}`) }}
+		</button>
 	</div>
 </template>
 
@@ -46,7 +19,16 @@ export default {
 	props: {
 		mode: String,
 	},
+	emits: ["updated"],
+	data() {
+		return {
+			modes: ["off", "pv", "minpv", "now"],
+		};
+	},
 	methods: {
+		isActive: function (mode) {
+			return this.mode === mode;
+		},
 		setTargetMode: function (mode) {
 			this.$emit("updated", mode);
 		},
@@ -55,9 +37,30 @@ export default {
 </script>
 
 <style scoped>
+.mode-group {
+	border: 2px solid var(--evcc-default-text);
+	border-radius: 20px;
+	padding: 4px;
+	min-width: 255px;
+}
+
 .btn {
 	/* equal width buttons */
 	flex-basis: 0;
 	white-space: nowrap;
+	border-radius: 18px;
+	padding: 0.1em 0.8em;
+	color: var(--evcc-default-text);
+	border: none;
+}
+.btn:hover {
+	color: var(--evcc-gray);
+}
+.btn.active {
+	color: var(--evcc-background);
+	background: var(--evcc-default-text);
+}
+.btn-group {
+	border-radius: 16px;
 }
 </style>

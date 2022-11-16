@@ -2,8 +2,8 @@ package meter
 
 import (
 	"github.com/evcc-io/evcc/api"
+	"github.com/evcc-io/evcc/meter/fritzdect"
 	"github.com/evcc-io/evcc/util"
-	"github.com/evcc-io/evcc/util/fritzdect"
 )
 
 // AVM FritzBox AHA interface specifications:
@@ -15,7 +15,7 @@ func init() {
 
 // NewFritzDECTFromConfig creates a fritzdect meter from generic config
 func NewFritzDECTFromConfig(other map[string]interface{}) (api.Meter, error) {
-	cc := &fritzdect.Settings{}
+	var cc fritzdect.Settings
 	if err := util.DecodeOther(other, &cc); err != nil {
 		return nil, err
 	}

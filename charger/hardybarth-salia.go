@@ -18,6 +18,7 @@ package charger
 // SOFTWARE.
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -29,9 +30,9 @@ import (
 	"github.com/evcc-io/evcc/charger/echarge/salia"
 	"github.com/evcc-io/evcc/util"
 	"github.com/evcc-io/evcc/util/request"
+	"github.com/evcc-io/evcc/util/sponsor"
 )
 
-// http://apidoc.ecb1.de
 // https://github.com/evcc-io/evcc/discussions/778
 
 // Salia charger implementation
@@ -51,16 +52,13 @@ func init() {
 
 //go:generate go run ../cmd/tools/decorate.go -f decorateSalia -b *Salia -r api.Charger -t "api.Meter,CurrentPower,func() (float64, error)" -t "api.MeterEnergy,TotalEnergy,func() (float64, error)" -t "api.MeterCurrent,Currents,func() (float64, float64, float64, error)"
 
-// NewSaliaFromConfig creates a Salia cPH1 charger from generic config
+// NewSaliaFromConfig creates a Salia cPH2 charger from generic config
 func NewSaliaFromConfig(other map[string]interface{}) (api.Charger, error) {
 	cc := struct {
-		URI           string
-		ChargeControl int
-		Meter         int
-		Cache         time.Duration
+		URI   string
+		Cache time.Duration
 	}{
-		ChargeControl: 1,
-		Meter:         1,
+		Cache: time.Second,
 	}
 
 	if err := util.DecodeOther(other, &cc); err != nil {
@@ -84,13 +82,26 @@ func NewSalia(uri string, cache time.Duration) (api.Charger, error) {
 		cache:   cache,
 	}
 
-	// if !sponsor.IsAuthorized() {
-	// 	return nil, api.ErrSponsorRequired
-	// }
+	if !sponsor.IsAuthorized() {
+		return nil, api.ErrSponsorRequired
+	}
 
-	err := wb.post(salia.ChargeMode, echarge.ModeManual)
+	// set chargemode manual
+	res, err := wb.get()
+	if err == nil && res.Secc.Port0.Salia.ChargeMode != echarge.ModeManual {
+		if err = wb.post(salia.ChargeMode, echarge.ModeManual); err == nil {
+			res, err = wb.get()
+		}
+
+		if err == nil && res.Secc.Port0.Salia.ChargeMode != echarge.ModeManual {
+			err = errors.New("could not change chargemode to manual")
+		}
+	}
+
 	if err == nil {
 		go wb.heartbeat()
+
+		wb.pause(false)
 
 		res, err := wb.get()
 		if err == nil && res.Secc.Port0.Metering.Meter.Available > 0 {
@@ -102,8 +113,7 @@ func NewSalia(uri string, cache time.Duration) (api.Charger, error) {
 }
 
 func (wb *Salia) heartbeat() {
-	_ = wb.post(salia.HeartBeat, "alive")
-	for range time.NewTicker(30 * time.Second).C {
+	for ; true; <-time.NewTicker(30 * time.Second).C {
 		if err := wb.post(salia.HeartBeat, "alive"); err != nil {
 			wb.log.ERROR.Println("heartbeat:", err)
 		}
@@ -164,7 +174,13 @@ func (wb *Salia) Enabled() (bool, error) {
 	if err == nil && res.Secc.Port0.Salia.ChargeMode != echarge.ModeManual {
 		err = fmt.Errorf("invalid mode: %s", res.Secc.Port0.Salia.ChargeMode)
 	}
-	return res.Secc.Port0.GridCurrentLimit > 0, err
+	return res.Secc.Port0.GridCurrentLimit > 0 && res.Secc.Port0.Salia.PauseCharging == 0, err
+}
+
+func (wb *Salia) pause(enable bool) {
+	// ignore error for FW <1.52
+	offOn := map[bool]string{false: "1", true: "0"}
+	_ = wb.post(salia.PauseCharging, offOn[enable])
 }
 
 // Enable implements the api.Charger interface
@@ -176,6 +192,7 @@ func (wb *Salia) Enable(enable bool) error {
 
 	err := wb.setCurrent(current)
 	if err == nil {
+		wb.pause(enable)
 		wb.updated = time.Time{}
 	}
 

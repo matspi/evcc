@@ -1,22 +1,27 @@
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap";
+import smoothscroll from "smoothscroll-polyfill";
 import "../css/app.css";
-import Vue from "vue";
-import VueMeta from "vue-meta";
-import api from "./api";
-import App from "./views/App";
+import { createApp, h } from "vue";
+import { createMetaManager, plugin as metaPlugin } from "vue-meta";
+import App from "./views/App.vue";
+import VueNumber from "vue-number-animation";
 import router from "./router";
 import i18n from "./i18n";
-import "./tooltip";
-import store from "./store";
+import featureflags from "./featureflags";
+import { watchThemeChanges } from "./theme";
 
-Vue.use(VueMeta);
+smoothscroll.polyfill();
 
-window.app = new Vue({
-  el: "#app",
-  router,
-  i18n,
-  data: { store, notifications: [] },
+const app = createApp({
+  data() {
+    return { notifications: [], offline: false };
+  },
+  watch: {
+    offline: function (value) {
+      console.log(`we are ${value ? "offline" : "online"}`);
+    },
+  },
   methods: {
     raise: function (msg) {
       console[msg.type](msg);
@@ -43,18 +48,28 @@ window.app = new Vue({
       msg.type = "error";
       this.raise(msg);
     },
+    setOnline: function () {
+      this.offline = false;
+    },
+    setOffline: function () {
+      this.offline = true;
+    },
     warn: function (msg) {
       msg.type = "warn";
       this.raise(msg);
     },
   },
-  render: function (h) {
-    return h(App, { props: { notifications: this.notifications } });
+  render: function () {
+    return h(App, { notifications: this.notifications, offline: this.offline });
   },
 });
 
-window.setInterval(function () {
-  api.get("health").catch(function () {
-    window.app.error({ message: "Server unavailable" });
-  });
-}, 5000);
+app.use(i18n);
+app.use(router);
+app.use(createMetaManager());
+app.use(metaPlugin);
+app.use(featureflags);
+app.use(VueNumber);
+window.app = app.mount("#app");
+
+watchThemeChanges();

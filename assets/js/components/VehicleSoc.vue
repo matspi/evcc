@@ -2,48 +2,46 @@
 	<div class="vehicle-soc">
 		<div class="progress">
 			<div
+				v-if="connected"
 				class="progress-bar"
 				role="progressbar"
 				:class="{
+					[progressColor]: true,
 					'progress-bar-striped': charging,
 					'progress-bar-animated': charging,
-					[progressColor]: true,
 				}"
 				:style="{ width: `${vehicleSoCDisplayWidth}%` }"
-			>
-				{{ vehicleSoCDisplayValue }}
-			</div>
+			></div>
 			<div
-				v-if="remainingSoCWidth > 0 && enabled"
-				class="progress-bar"
+				v-if="remainingSoCWidth > 0 && enabled && connected"
+				class="progress-bar bg-muted"
 				role="progressbar"
-				:class="{
-					[progressColor]: true,
-					'bg-muted': true,
-				}"
+				:class="progressColor"
 				:style="{ width: `${remainingSoCWidth}%`, transition: 'none' }"
 			></div>
-		</div>
-		<div
-			class="target"
-			:class="{ 'target--slider-hidden': allowSliderHiding && visibleTargetSoC === 100 }"
-		>
 			<div
-				class="target-label d-flex align-items-center justify-content-center"
-				:style="{ left: `${visibleTargetSoC}%` }"
-			>
-				{{ visibleTargetSoC }}%
-			</div>
+				v-show="vehicleTargetSoC"
+				ref="vehicleTargetSoC"
+				class="vehicle-target-soc"
+				data-bs-toggle="tooltip"
+				:title="$t('main.vehicleSoC.vehicleTarget', { soc: vehicleTargetSoC })"
+				:class="{ 'vehicle-target-soc--active': vehicleTargetSoCActive }"
+				:style="{ left: `${vehicleTargetSoC}%` }"
+			/>
+		</div>
+		<div class="target">
 			<input
+				v-if="socBasedCharging && connected"
 				type="range"
 				min="0"
 				max="100"
 				step="5"
 				:value="visibleTargetSoC"
 				class="target-slider"
-				@input="movedTargetSoC"
+				:class="{ 'target-slider--active': targetSliderActive }"
 				@mousedown="changeTargetSoCStart"
 				@touchstart="changeTargetSoCStart"
+				@input="movedTargetSoC"
 				@mouseup="changeTargetSoCEnd"
 				@touchend="changeTargetSoCEnd"
 			/>
@@ -52,56 +50,52 @@
 </template>
 
 <script>
+import { Tooltip } from "bootstrap";
+
 export default {
 	name: "VehicleSoc",
 	props: {
 		connected: Boolean,
 		vehiclePresent: Boolean,
 		vehicleSoC: Number,
+		vehicleTargetSoC: Number,
 		enabled: Boolean,
 		charging: Boolean,
 		minSoC: Number,
 		targetSoC: Number,
+		targetEnergy: Number,
+		chargedEnergy: Number,
+		socBasedCharging: Boolean,
 	},
+	emits: ["target-soc-drag", "target-soc-updated"],
 	data: function () {
 		return {
 			selectedTargetSoC: null,
-			allowSliderHiding: false,
 			interactionStartScreenY: null,
+			tooltip: null,
 		};
 	},
 	computed: {
 		vehicleSoCDisplayWidth: function () {
-			if (this.vehiclePresent && this.vehicleSoC >= 0) {
-				return this.vehicleSoC;
-			}
-			return 100;
-		},
-		vehicleSoCDisplayValue: function () {
-			// no soc or no soc value
-			if (!this.vehiclePresent || !this.vehicleSoC || this.vehicleSoC < 0) {
-				let chargeStatus = this.$t("main.vehicleSoC.disconnected");
-				if (this.charging) {
-					chargeStatus = this.$t("main.vehicleSoC.charging");
-				} else if (this.enabled) {
-					chargeStatus = this.$t("main.vehicleSoC.ready");
-				} else if (this.connected) {
-					chargeStatus = this.$t("main.vehicleSoC.connected");
+			if (this.socBasedCharging) {
+				if (this.vehicleSoC >= 0) {
+					return this.vehicleSoC;
 				}
-				return chargeStatus;
+				return 100;
+			} else {
+				if (this.targetEnergy) {
+					return (100 / this.targetEnergy) * (this.chargedEnergy / 1e3);
+				}
+				return 100;
 			}
-
-			// percent value if enough space
-			let vehicleSoC = this.vehicleSoC;
-			if (vehicleSoC >= 10) {
-				vehicleSoC += "%";
-			}
-			return vehicleSoC;
+		},
+		vehicleTargetSoCActive: function () {
+			return this.vehicleTargetSoC > 0 && this.vehicleTargetSoC > this.vehicleSoC;
+		},
+		targetSliderActive: function () {
+			return !this.vehicleTargetSoC || this.visibleTargetSoC <= this.vehicleTargetSoC;
 		},
 		progressColor: function () {
-			if (!this.connected) {
-				return "bg-light border";
-			}
 			if (this.minSoCActive) {
 				return "bg-danger";
 			}
@@ -111,15 +105,23 @@ export default {
 			return this.minSoC > 0 && this.vehicleSoC < this.minSoC;
 		},
 		remainingSoCWidth: function () {
-			if (this.vehicleSoCDisplayWidth === 100) {
-				return null;
+			if (this.socBasedCharging) {
+				if (this.vehicleSoCDisplayWidth === 100) {
+					return null;
+				}
+				if (this.minSoCActive) {
+					return this.minSoC - this.vehicleSoC;
+				}
+				let targetSoC = this.targetSliderActive
+					? this.visibleTargetSoC
+					: this.vehicleTargetSoC;
+				if (targetSoC > this.vehicleSoC) {
+					return targetSoC - this.vehicleSoC;
+				}
+			} else {
+				return 100 - this.vehicleSoCDisplayWidth;
 			}
-			if (this.minSoCActive) {
-				return this.minSoC - this.vehicleSoC;
-			}
-			if (this.visibleTargetSoC > this.vehicleSoC) {
-				return this.visibleTargetSoC - this.vehicleSoC;
-			}
+
 			return null;
 		},
 		visibleTargetSoC: function () {
@@ -130,52 +132,55 @@ export default {
 		targetSoC: function () {
 			this.selectedTargetSoC = this.targetSoC;
 		},
+		vehicleTargetSoC: function () {
+			this.updateTooltip();
+		},
 	},
 	mounted: function () {
-		setTimeout(() => {
-			this.allowSliderHiding = true;
-		}, 1000);
+		this.updateTooltip();
 	},
 	methods: {
 		changeTargetSoCStart: function (e) {
-			const screenY = e.screenY || e.changedTouches[0].screenY;
-			this.interactionStartScreenY = screenY;
+			e.stopPropagation();
 		},
 		changeTargetSoCEnd: function (e) {
-			const screenY = e.screenY || e.changedTouches[0].screenY;
-			const yDiff = Math.abs(screenY - this.interactionStartScreenY);
-			// horizontal scroll detected - revert slider change
-			if (yDiff > 80) {
-				e.preventDefault();
-				e.target.value = this.targetSoC;
-				this.selectedTargetSoC = this.targetSoC;
-				return false;
-			}
+			const value = parseInt(e.target.value, 10);
 			// value changed
-			if (e.target.value !== this.targetSoC) {
-				this.$emit("target-soc-updated", e.target.value);
+			if (value !== this.targetSoC) {
+				this.$emit("target-soc-updated", value);
 			}
 		},
 		movedTargetSoC: function (e) {
+			let value = parseInt(e.target.value, 10);
+			e.stopPropagation();
 			const minTargetSoC = 20;
-			if (e.target.value < minTargetSoC) {
+			if (value < minTargetSoC) {
 				e.target.value = minTargetSoC;
-				this.selectedTargetSoC = e.target.value;
+				this.selectedTargetSoC = value;
 				e.preventDefault();
 				return false;
 			}
-			this.selectedTargetSoC = e.target.value;
+			this.selectedTargetSoC = value;
+
+			this.$emit("target-soc-drag", this.selectedTargetSoC);
 			return true;
+		},
+		updateTooltip: function () {
+			this.$nextTick(() => {
+				if (this.tooltip) {
+					this.tooltip.dispose();
+				}
+				this.tooltip = new Tooltip(this.$refs.vehicleTargetSoC);
+			});
 		},
 	},
 };
 </script>
 <style scoped>
 .vehicle-soc {
-	--height: 38px;
-	--thumb-overlap: 3px;
-	--thumb-width: 3px;
-	--thumb-horizontal-padding: 15px;
+	--height: 32px;
+	--thumb-overlap: 6px;
+	--thumb-width: 12px;
 	--label-height: 26px;
 	position: relative;
 	height: var(--height);
@@ -183,33 +188,22 @@ export default {
 .progress {
 	height: 100%;
 	font-size: 1rem;
+	background: var(--evcc-background);
 }
 .progress-bar.bg-muted {
-	color: var(--white);
+	opacity: 0.5;
 }
 .bg-light {
 	color: var(--bs-gray-dark);
-}
-.target-label {
-	width: 3em;
-	margin-left: -1.5em;
-	height: var(--label-height);
-	position: absolute;
-	top: calc((var(--label-height) + var(--thumb-overlap)) * -1);
-	text-align: center;
-	color: var(--bs-gray-dark);
-	font-size: 1rem;
-	opacity: 1;
-	transition: opacity 0.2s ease 1s;
 }
 .target-slider {
 	-webkit-appearance: none;
 	position: absolute;
 	top: calc(var(--thumb-overlap) * -1);
-	left: calc(var(--thumb-horizontal-padding) * -1);
 	height: calc(100% + 2 * var(--thumb-overlap));
-	width: calc(100% + 2 * var(--thumb-horizontal-padding));
+	width: 100%;
 	background: transparent;
+	pointer-events: none;
 }
 .target-slider:focus {
 	outline: none;
@@ -220,61 +214,62 @@ export default {
 	background: transparent;
 	border: none;
 	height: 100%;
-	cursor: pointer;
+	cursor: auto;
 }
 .target-slider::-moz-range-track {
 	background: transparent;
 	border: none;
 	height: 100%;
-	cursor: pointer;
+	cursor: auto;
 }
 .target-slider::-webkit-slider-thumb {
 	-webkit-appearance: none;
 	position: relative;
-	top: calc(var(--label-height) * -1);
+	margin-left: var(--thumb-width) / 2;
 	height: 100%;
 	width: var(--thumb-width);
-	padding: var(--label-height) var(--thumb-horizontal-padding) 0;
-	box-sizing: content-box;
-	background-clip: content-box;
-	background-color: var(--bs-gray-dark);
+	background-color: var(--evcc-gray);
 	cursor: grab;
 	border: none;
 	opacity: 1;
-	transition: opacity 0.2s ease 1s;
-	box-shadow: none;
+	border-radius: var(--thumb-overlap);
+	box-shadow: 0 0 6px var(--evcc-background);
+	pointer-events: auto;
+	transition: background-color var(--evcc-transition-fast) linear;
 }
 .target-slider::-moz-range-thumb {
 	position: relative;
-	top: calc(var(--label-height) * -1);
 	height: 100%;
 	width: var(--thumb-width);
-	padding: 0 var(--thumb-horizontal-padding) 0;
-	box-sizing: content-box;
-	background-clip: content-box;
-	background-color: var(--bs-gray-dark);
+	background-color: var(--evcc-gray);
 	cursor: grab;
 	border: none;
 	opacity: 1;
-	transition: opacity 0.5s ease 1s;
+	border-radius: var(--thumb-overlap);
+	box-shadow: 0 0 6px var(--evcc-background);
+	pointer-events: auto;
+	transition: background-color var(--evcc-transition-fast) linear;
 }
-/* auto-hide targetSoC marker at 100% */
-.target--slider-hidden .target-slider::-webkit-slider-thumb,
-.target--slider-hidden .target-label {
-	opacity: 0;
+.target-slider--active::-webkit-slider-thumb {
+	background-color: var(--evcc-dark-green);
 }
-.target--slider-hidden .target-slider::-moz-range-thumb,
-.target--slider-hidden .target-label {
-	opacity: 0;
+.target-slider--active::-moz-range-thumb {
+	background-color: var(--evcc-dark-green);
 }
-.target:hover .target-slider::-webkit-slider-thumb,
-.target:hover .target-label {
-	opacity: 1;
-	transition-delay: 0s;
+.vehicle-target-soc {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	width: 20px;
+	transform: translateX(-8px);
+	background-color: transparent;
+	background-clip: padding-box;
+	border-width: 0 8px;
+	border-style: solid;
+	border-color: transparent;
+	transition: background-color var(--evcc-transition-fast) linear;
 }
-.target:hover .target-slider::-moz-range-thumb,
-.target:hover .target-label {
-	opacity: 1;
-	transition-delay: 0s;
+.vehicle-target-soc--active {
+	background-color: var(--evcc-box);
 }
 </style>

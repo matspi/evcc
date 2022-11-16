@@ -5,8 +5,8 @@ import (
 	"strconv"
 
 	"github.com/evcc-io/evcc/api"
+	"github.com/evcc-io/evcc/meter/fritzdect"
 	"github.com/evcc-io/evcc/util"
-	"github.com/evcc-io/evcc/util/fritzdect"
 )
 
 // AVM FritzBox AHA interface specifications:
@@ -14,8 +14,8 @@ import (
 
 // FritzDECT charger implementation
 type FritzDECT struct {
-	conn         *fritzdect.Connection
-	standbypower float64
+	conn *fritzdect.Connection
+	*switchSocket
 }
 
 func init() {
@@ -24,13 +24,10 @@ func init() {
 
 // NewFritzDECTFromConfig creates a fritzdect charger from generic config
 func NewFritzDECTFromConfig(other map[string]interface{}) (api.Charger, error) {
-	cc := struct {
-		URI          string
-		AIN          string
-		User         string
-		Password     string
-		StandbyPower float64
-	}{}
+	var cc struct {
+		fritzdect.Settings `mapstructure:",squash"`
+		StandbyPower       float64
+	}
 
 	if err := util.DecodeOther(other, &cc); err != nil {
 		return nil, err
@@ -43,12 +40,13 @@ func NewFritzDECTFromConfig(other map[string]interface{}) (api.Charger, error) {
 func NewFritzDECT(uri, ain, user, password string, standbypower float64) (*FritzDECT, error) {
 	conn, err := fritzdect.NewConnection(uri, ain, user, password)
 
-	fd := &FritzDECT{
-		conn:         conn,
-		standbypower: standbypower,
+	c := &FritzDECT{
+		conn: conn,
 	}
 
-	return fd, err
+	c.switchSocket = NewSwitchSocket(c.Enabled, c.conn.CurrentPower, standbypower)
+
+	return c, err
 }
 
 // Status implements the api.Charger interface
@@ -66,25 +64,7 @@ func (c *FritzDECT) Status() (api.ChargeStatus, error) {
 		return api.StatusNone, err
 	}
 
-	res := api.StatusB
-
-	// static mode
-	if c.standbypower < 0 {
-		on, err := c.Enabled()
-		if on {
-			res = api.StatusC
-		}
-
-		return res, err
-	}
-
-	// standby power mode
-	power, err := c.conn.CurrentPower()
-	if power > c.standbypower {
-		res = api.StatusC
-	}
-
-	return res, err
+	return c.switchSocket.Status()
 }
 
 // Enabled implements the api.Charger interface
@@ -92,10 +72,6 @@ func (c *FritzDECT) Enabled() (bool, error) {
 	resp, err := c.conn.ExecCmd("getswitchstate")
 	if err != nil {
 		return false, err
-	}
-
-	if resp == "inval" {
-		return false, api.ErrNotAvailable
 	}
 
 	return strconv.ParseBool(resp)
@@ -125,18 +101,6 @@ func (c *FritzDECT) Enable(enable bool) error {
 // MaxCurrent implements the api.Charger interface
 func (c *FritzDECT) MaxCurrent(current int64) error {
 	return nil
-}
-
-var _ api.Meter = (*FritzDECT)(nil)
-
-// CurrentPower implements the api.Meter interface
-func (c *FritzDECT) CurrentPower() (float64, error) {
-	power, err := c.conn.CurrentPower()
-	if power < c.standbypower {
-		power = 0
-	}
-
-	return power, err
 }
 
 var _ api.MeterEnergy = (*FritzDECT)(nil)

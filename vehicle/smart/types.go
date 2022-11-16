@@ -6,13 +6,19 @@ import (
 )
 
 type StatusResponse struct {
-	PreCond   struct{}
+	PreCond struct {
+		Data struct {
+			ChargingPower  FloatValue
+			ChargingActive BoolValue
+			ChargingStatus IntValue
+		} `json:"data"`
+	}
 	ChargeOpt struct{}
 	Status    struct {
-		StatusData struct {
-			Odo           Value
-			RangeElectric Value
-			Soc           Value
+		Data struct {
+			Odo           FloatValue
+			RangeElectric FloatValue
+			Soc           FloatValue
 		} `json:"data"`
 	}
 	Images           []string
@@ -20,7 +26,19 @@ type StatusResponse struct {
 	ErrorDescription string `json:"error_description"`
 }
 
-type Value struct {
+type BoolValue struct {
+	Status int
+	Value  bool
+	Ts     TimeSecs
+}
+
+type IntValue struct {
+	Status int
+	Value  int
+	Ts     TimeSecs
+}
+
+type FloatValue struct {
 	Status int
 	Value  float64
 	Ts     TimeSecs

@@ -12,16 +12,9 @@ import (
 
 // api constants
 const (
-	APIVersion         = "protocol=1.0,resource=2.1"
-	ClientID           = "a-ncb-prod-android"
-	ClientSecret       = "0sAcrtwvwEXXZp5nzQhPexSRhxUVKa0d76F4uqDvxvvKFHXpo4myoJwUuV4vuNqC"
-	Scope              = "openid profile vehicles"
-	AuthBaseURL        = "https://prod.eu2.auth.kamereon.org/kauth"
-	Realm              = "a-ncb-prod"
-	RedirectURI        = "org.kamereon.service.nci:/oauth2redirect"
 	CarAdapterBaseURL  = "https://alliance-platform-caradapter-prod.apps.eu2.kamereon.io/car-adapter"
 	UserAdapterBaseURL = "https://alliance-platform-usersadapter-prod.apps.eu2.kamereon.io/user-adapter"
-	UserBaseURL        = "https://nci-bff-web-prod.apps.eu.kamereon.io/bff-web"
+	UserBaseURL        = "https://nci-bff-web-prod.apps.eu2.kamereon.io/bff-web"
 )
 
 type API struct {
@@ -52,7 +45,7 @@ func (v *API) Vehicles() ([]string, error) {
 
 	var res Vehicles
 	if err == nil {
-		uri := fmt.Sprintf("%s/v4/users/%s/cars", UserBaseURL, user.UserID)
+		uri := fmt.Sprintf("%s/v5/users/%s/cars", UserBaseURL, user.UserID)
 		err = v.GetJSON(uri, &res)
 	}
 
@@ -77,7 +70,7 @@ func (v *API) BatteryStatus(vin string) (StatusResponse, error) {
 }
 
 // RefreshRequest requests  battery status refresh
-func (v *API) RefreshRequest(vin string, typ string) (ActionResponse, error) {
+func (v *API) RefreshRequest(vin, typ string) (ActionResponse, error) {
 	var res ActionResponse
 	uri := fmt.Sprintf("%s/v1/cars/%s/actions/refresh-battery-status", CarAdapterBaseURL, vin)
 
@@ -97,6 +90,10 @@ func (v *API) RefreshRequest(vin string, typ string) (ActionResponse, error) {
 
 	return res, err
 }
+
+// more commands: https://github.com/TA2k/ioBroker.nissan/commit/0e32ab743af3cbecd756633e52e9baa869766c7d
+// refresh-location
+// wake-up-vehicle
 
 type Action string
 
