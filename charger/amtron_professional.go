@@ -173,7 +173,7 @@ func toUint32(b []byte) uint32 {
 	return uint32(binary.LittleEndian.Uint16(b)*256) + uint32(binary.BigEndian.Uint16(b[2:]))
 }
 
-var _ api.MeterCurrent = (*AmtronProfessional)(nil)
+var _ api.PhaseCurrents = (*AmtronProfessional)(nil)
 
 // Currents implements the api.MeterCurrent interface
 func (wb *AmtronProfessional) Currents() (float64, float64, float64, error) {
