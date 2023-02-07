@@ -2,8 +2,7 @@
 	<div>
 		<button
 			class="btn btn-link pe-0 text-decoration-none evcc-default-text text-nowrap d-flex align-items-end"
-			data-bs-toggle="modal"
-			data-bs-target="#savingsModal"
+			@click="openModal"
 		>
 			<span class="d-inline d-sm-none">{{
 				$t("footer.savings.footerShort", { percent })
@@ -24,10 +23,7 @@
 				role="dialog"
 				aria-hidden="true"
 			>
-				<div
-					class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"
-					role="document"
-				>
+				<div class="modal-dialog modal-lg modal-dialog-centered" role="document">
 					<div class="modal-content">
 						<div class="modal-header">
 							<h5 class="modal-title">
@@ -124,7 +120,7 @@
 									<small>
 										{{
 											$t("footer.savings.since", {
-												since: fmtDayMonthYear(startDate),
+												since: startDate,
 											})
 										}}
 									</small>
@@ -145,6 +141,7 @@
 </template>
 
 <script>
+import Modal from "bootstrap/js/dist/modal";
 import formatter from "../mixins/formatter";
 import Sponsor from "./Sponsor.vue";
 import SavingsTile from "./SavingsTile.vue";
@@ -157,7 +154,7 @@ export default {
 	mixins: [formatter],
 	props: {
 		selfConsumptionPercent: Number,
-		since: { type: Number, default: 0 },
+		since: String,
 		sponsor: String,
 		amount: { type: Number, default: 0 },
 		effectivePrice: { type: Number, default: 0 },
@@ -182,7 +179,10 @@ export default {
 			return { value, unit };
 		},
 		startDate() {
-			return new Date(this.since * 1000);
+			if (this.since) {
+				return this.fmtDayMonthYear(new Date(this.since));
+			}
+			return "";
 		},
 	},
 	methods: {
@@ -191,6 +191,10 @@ export default {
 		},
 		showMyData() {
 			this.communityView = false;
+		},
+		openModal() {
+			const modal = Modal.getOrCreateInstance(document.getElementById("savingsModal"));
+			modal.show();
 		},
 	},
 };

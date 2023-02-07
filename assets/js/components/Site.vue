@@ -60,25 +60,29 @@ export default {
 		pvPower: Number,
 		batteryConfigured: Boolean,
 		batteryPower: Number,
-		batterySoC: Number,
+		batterySoc: Number,
+		battery: Array,
 		gridCurrents: Array,
-		prioritySoC: Number,
+		prioritySoc: Number,
 		siteTitle: String,
 		vehicles: Array,
 
 		auth: Object,
 
-		// footer
 		currency: String,
 		savingsAmount: Number,
 		savingsEffectivePrice: Number,
 		savingsGridCharged: Number,
 		savingsSelfConsumptionCharged: Number,
 		savingsSelfConsumptionPercent: Number,
-		savingsSince: Number,
+		savingsSince: String,
 		savingsTotalCharged: Number,
+		greenShare: Number,
 		tariffFeedIn: Number,
 		tariffGrid: Number,
+		tariffEffectivePrice: Number,
+		tariffCo2: Number,
+		tariffEffectiveCo2: Number,
 
 		availableVersion: String,
 		releaseNotes: String,
@@ -91,8 +95,17 @@ export default {
 		energyflow: function () {
 			return this.collectProps(Energyflow);
 		},
+		activeLoadpoints: function () {
+			return this.loadpoints.filter((lp) => lp.charging);
+		},
 		activeLoadpointsCount: function () {
-			return this.loadpoints.filter((lp) => lp.chargePower > 0).length;
+			return this.activeLoadpoints.length;
+		},
+		vehicleIcons: function () {
+			if (this.activeLoadpointsCount) {
+				return this.activeLoadpoints.map((lp) => lp.vehicleIcon || "car");
+			}
+			return ["car"];
 		},
 		loadpointsPower: function () {
 			return this.loadpoints.reduce((sum, lp) => {
@@ -102,7 +115,13 @@ export default {
 		},
 		topNavigation: function () {
 			const vehicleLogins = this.auth ? this.auth.vehicles : {};
-			return { vehicleLogins };
+			return { vehicleLogins, ...this.collectProps(TopNavigation) };
+		},
+		hasPrice: function () {
+			return !isNaN(this.tariffGrid);
+		},
+		hasCo2: function () {
+			return !isNaN(this.tariffCo2);
 		},
 		showParkingLot: function () {
 			// work in progess

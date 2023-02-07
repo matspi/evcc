@@ -15,8 +15,9 @@
 				:batteryDischarge="batteryDischarge"
 				:pvProduction="pvProduction"
 				:homePower="homePower"
-				:batterySoC="batterySoC"
+				:batterySoc="batterySoc"
 				:valuesInKw="valuesInKw"
+				:vehicleIcons="vehicleIcons"
 			/>
 		</div>
 		<div class="details" :style="{ height: detailsHeight }">
@@ -61,15 +62,20 @@
 							v-if="batteryConfigured"
 							:name="$t('main.energyflow.batteryDischarge')"
 							icon="battery"
-							:soc="batterySoC"
+							:soc="batterySoc"
 							:power="batteryDischarge"
 							:valuesInKw="valuesInKw"
+							:tooltip="batteryTooltip"
 						/>
 						<EnergyflowEntry
 							:name="$t('main.energyflow.gridImport')"
 							icon="powersupply"
 							:power="gridImport"
 							:valuesInKw="valuesInKw"
+							:price="tariffGrid"
+							:currency="currency"
+							:co2="tariffCo2"
+							:tooltip="detailsTooltip(tariffGrid, tariffCo2)"
 						/>
 					</div>
 				</div>
@@ -88,6 +94,10 @@
 							icon="home"
 							:power="homePower"
 							:valuesInKw="valuesInKw"
+							:price="tariffEffectivePrice"
+							:currency="currency"
+							:co2="tariffEffectiveCo2"
+							:tooltip="detailsTooltip(tariffEffectivePrice, tariffEffectiveCo2)"
 						/>
 						<EnergyflowEntry
 							:name="
@@ -95,23 +105,32 @@
 									count: activeLoadpointsCount,
 								})
 							"
-							icon="car3"
+							icon="vehicle"
+							:vehicleIcons="vehicleIcons"
 							:power="loadpointsPower"
 							:valuesInKw="valuesInKw"
+							:price="tariffEffectivePrice"
+							:currency="currency"
+							:co2="tariffEffectiveCo2"
+							:tooltip="detailsTooltip(tariffEffectivePrice, tariffEffectiveCo2)"
 						/>
 						<EnergyflowEntry
 							v-if="batteryConfigured"
 							:name="$t('main.energyflow.batteryCharge')"
 							icon="battery"
-							:soc="batterySoC"
+							:soc="batterySoc"
 							:power="batteryCharge"
 							:valuesInKw="valuesInKw"
+							:tooltip="batteryTooltip"
 						/>
 						<EnergyflowEntry
 							:name="$t('main.energyflow.pvExport')"
 							icon="powersupply"
 							:power="pvExport"
 							:valuesInKw="valuesInKw"
+							:price="-tariffFeedIn"
+							:currency="currency"
+							:tooltip="detailsTooltip(-tariffFeedIn)"
 						/>
 					</div>
 				</div>
@@ -126,6 +145,7 @@ import Visualization from "./Visualization.vue";
 import EnergyflowEntry from "./EnergyflowEntry.vue";
 import formatter from "../../mixins/formatter";
 import AnimatedNumber from "../AnimatedNumber.vue";
+import settings from "../../settings";
 
 export default {
 	name: "Energyflow",
@@ -140,8 +160,16 @@ export default {
 		loadpointsPower: { type: Number, default: 0 },
 		activeLoadpointsCount: { type: Number, default: 0 },
 		batteryConfigured: Boolean,
+		battery: { type: Array },
 		batteryPower: { type: Number, default: 0 },
-		batterySoC: { type: Number, default: 0 },
+		batterySoc: { type: Number, default: 0 },
+		vehicleIcons: { type: Array },
+		tariffGrid: { type: Number },
+		tariffFeedIn: { type: Number },
+		tariffEffectivePrice: { type: Number },
+		tariffCo2: { type: Number },
+		tariffEffectiveCo2: { type: Number },
+		currency: { type: String },
 	},
 	data: () => {
 		return { detailsOpen: false, detailsCompleteHeight: null };
@@ -183,20 +211,45 @@ export default {
 		detailsHeight: function () {
 			return this.detailsOpen ? this.detailsCompleteHeight + "px" : 0;
 		},
+		batteryTooltip() {
+			if (!Array.isArray(this.battery)) {
+				return;
+			}
+			return this.battery.map(({ soc, capacity }) => {
+				const energy = this.fmtKWh((capacity / 100) * soc * 1e3, true, false, 1);
+				const total = this.fmtKWh(capacity * 1e3, true, true, 1);
+				return this.$t("main.energyflow.batteryTooltip", { energy, total, soc });
+			});
+		},
 	},
 	mounted() {
 		window.addEventListener("resize", this.updateHeight);
+		// height must be calculated in case of initially open details
+		if (settings.energyflowDetails) {
+			setTimeout(this.toggleDetails, 50);
+		}
 	},
 	unmounted() {
 		window.removeEventListener("resize", this.updateHeight);
 	},
 	methods: {
+		detailsTooltip(price, co2) {
+			const result = [];
+			if (co2 !== undefined) {
+				result.push(`${this.fmtCo2Long(co2)}`);
+			}
+			if (price !== undefined) {
+				result.push(`${this.fmtPricePerKWh(price, this.currency)}`);
+			}
+			return result;
+		},
 		kw: function (watt) {
 			return this.fmtKw(watt, this.valuesInKw);
 		},
 		toggleDetails: function () {
 			this.updateHeight();
 			this.detailsOpen = !this.detailsOpen;
+			settings.energyflowDetails = this.detailsOpen;
 		},
 		updateHeight: function () {
 			this.detailsCompleteHeight = this.$refs.detailsInner.offsetHeight;

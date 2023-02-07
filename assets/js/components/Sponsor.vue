@@ -33,14 +33,14 @@
 		>
 			<a
 				target="_blank"
-				href="https://github.com/sponsors/andig"
+				href="https://github.com/sponsors/evcc-io"
 				class="btn btn-outline-primary mb-3 become-sponsor"
 			>
 				<shopicon-regular-heart class="me-1 d-inline-block"></shopicon-regular-heart>
 				{{ $t("footer.sponsor.becomeSponsor") }}
 			</a>
 			<div class="small text-muted text-center ms-lg-3">
-				{{ $t("footer.sponsor.confettiPromise") }}
+				{{ $t("footer.sponsor.confettiPromise") }} ;)
 			</div>
 		</div>
 	</div>
@@ -106,13 +106,17 @@ export default {
 .become-sponsor {
 	width: 100%;
 }
-@media (--sm-and-up) {
+
+/* breakpoint sm */
+@media (min-width: 576px) {
 	.confetti-button,
 	.become-sponsor {
 		width: 75%;
 	}
 }
-@media (--lg-and-up) {
+
+/* breakpoint lg */
+@media (min-width: 992px) {
 	.confetti-button,
 	.become-sponsor {
 		width: 40%;

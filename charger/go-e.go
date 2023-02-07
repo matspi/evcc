@@ -41,7 +41,7 @@ func init() {
 	registry.Add("go-e", NewGoEFromConfig)
 }
 
-// go:generate go run ../cmd/tools/decorate.go -f decorateGoE -b *GoE -r api.Charger -t "api.MeterEnergy,TotalEnergy,func() (float64, error)" -t "api.PhaseSwitcher,Phases1p3p,func(int) (error)"
+// go:generate go run ../cmd/tools/decorate.go -f decorateGoE -b *GoE -r api.Charger -t "api.MeterEnergy,func() (float64, error)" -t "api.PhaseSwitcher,Phases1p3p,func(int) (error)"
 
 // NewGoEFromConfig creates a go-e charger from generic config
 func NewGoEFromConfig(other map[string]interface{}) (api.Charger, error) {
@@ -82,7 +82,7 @@ func NewGoE(uri, token string, cache time.Duration) (api.Charger, error) {
 	}
 
 	if c.api.IsV2() {
-		return decorateGoE(c, c.totalEnergy, c.phases1p3p), nil
+		return decorateGoE(c, c.phases1p3p), nil
 	}
 
 	return c, nil
@@ -126,7 +126,7 @@ func (c *GoE) Enable(enable bool) error {
 
 	param := map[bool]string{false: "alw", true: "frc"}[c.api.IsV2()]
 	if c.api.IsV2() {
-		b += 1
+		b ^= 1
 	}
 
 	return c.api.Update(fmt.Sprintf("%s=%d", param, b))
@@ -162,9 +162,9 @@ func (c *GoE) ChargedEnergy() (float64, error) {
 	return resp.ChargedEnergy(), err
 }
 
-var _ api.MeterCurrent = (*GoE)(nil)
+var _ api.PhaseCurrents = (*GoE)(nil)
 
-// Currents implements the api.MeterCurrent interface
+// Currents implements the api.PhaseCurrents interface
 func (c *GoE) Currents() (float64, float64, float64, error) {
 	resp, err := c.api.Status()
 	if err != nil {
@@ -174,6 +174,20 @@ func (c *GoE) Currents() (float64, float64, float64, error) {
 	i1, i2, i3 := resp.Currents()
 
 	return i1, i2, i3, err
+}
+
+var _ api.PhaseVoltages = (*GoE)(nil)
+
+// Voltages implements the api.PhaseVoltages interface
+func (c *GoE) Voltages() (float64, float64, float64, error) {
+	resp, err := c.api.Status()
+	if err != nil {
+		return 0, 0, 0, err
+	}
+
+	u1, u2, u3 := resp.Voltages()
+
+	return u1, u2, u3, err
 }
 
 var _ api.Identifier = (*GoE)(nil)
@@ -187,19 +201,16 @@ func (c *GoE) Identify() (string, error) {
 	return resp.Identify(), nil
 }
 
+var _ api.MeterEnergy = (*GoE)(nil)
+
 // totalEnergy implements the api.MeterEnergy interface - v2 only
-func (c *GoE) totalEnergy() (float64, error) {
+func (c *GoE) TotalEnergy() (float64, error) {
 	resp, err := c.api.Status()
 	if err != nil {
 		return 0, err
 	}
 
-	var val float64
-	if res, ok := resp.(*goe.StatusResponse2); ok {
-		val = res.TotalEnergy()
-	}
-
-	return val, err
+	return resp.TotalEnergy(), err
 }
 
 // phases1p3p implements the api.PhaseSwitcher interface - v2 only

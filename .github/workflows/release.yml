@@ -34,10 +34,11 @@ jobs:
         id: meta
         uses: docker/metadata-action@v4
         with:
-          images: andig/evcc
+          images: |
+            evcc/evcc
 
       - name: Publish
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v4
         with:
           context: .
           platforms: linux/amd64,linux/arm64,linux/arm/v6
@@ -69,6 +70,13 @@ jobs:
       - name: Patch ASN1
         run: make patch-asn1-sudo
 
+      - name: Get dist from cache
+        uses: actions/cache/restore@v3
+        id: cache-dist
+        with:
+          path: dist
+          key: ${{ runner.os }}-${{ github.sha }}-dist
+
       # gokrazy image
       # - name: Prepare Image
       #   run: |
@@ -84,7 +92,7 @@ jobs:
       #   run: make image-rootfs
 
       - name: Create Github Release
-        uses: goreleaser/goreleaser-action@v3
+        uses: goreleaser/goreleaser-action@v4
         with:
           version: latest
           args: release --rm-dist
@@ -96,6 +104,18 @@ jobs:
         env:
           CLOUDSMITH_API_KEY: ${{ secrets.CLOUDSMITH_API_KEY }}
         run: make apt-release
+
+  demo:
+    name: Demo
+    needs:
+      - docker
+    runs-on: ubuntu-latest
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: flyctl deploy --remote-only --config packaging/fly.toml
 
   hassio:
     name: Hassio Addon

@@ -17,6 +17,7 @@ evcc.exe
 evcc_*
 linux-*.Dockerfile
 builddir
+dist
 flags
 node_modules
 release
@@ -29,3 +30,5 @@ cmd/wip
 fly.toml
 .idea
 vendor/*
+QEMU_EFI.fd
+asset-stats.html

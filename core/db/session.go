@@ -19,7 +19,7 @@ import (
 
 // Session is a single charging session
 type Session struct {
-	ID            uint      `json:"-" csv:"-" gorm:"primarykey"`
+	ID            uint      `json:"id" csv:"-" gorm:"primarykey"`
 	Created       time.Time `json:"created"`
 	Finished      time.Time `json:"finished"`
 	Loadpoint     string    `json:"loadpoint"`
@@ -29,15 +29,6 @@ type Session struct {
 	MeterStart    float64   `json:"meterStart" csv:"Meter Start (kWh)" gorm:"column:meter_start_kwh"`
 	MeterStop     float64   `json:"meterStop" csv:"Meter Stop (kWh)" gorm:"column:meter_end_kwh"`
 	ChargedEnergy float64   `json:"chargedEnergy" csv:"Charged Energy (kWh)" gorm:"column:charged_kwh"`
-}
-
-// Stop stops charging session with end meter reading and due total amount
-func (t *Session) Stop(chargedWh, total float64) {
-	if chargedEnergy := chargedWh / 1e3; chargedEnergy > t.ChargedEnergy {
-		t.ChargedEnergy = chargedEnergy
-	}
-	t.MeterStop = total
-	t.Finished = time.Now()
 }
 
 // Sessions is a list of sessions
@@ -90,9 +81,9 @@ func (t *Sessions) writeRow(ww *csv.Writer, mp *message.Printer, r Session) erro
 		case float64:
 			switch format {
 			case "int":
-				val = mp.Sprint(number.Decimal(v, number.MaxFractionDigits(0)))
+				val = mp.Sprint(number.Decimal(v, number.NoSeparator(), number.MaxFractionDigits(0)))
 			default:
-				val = mp.Sprint(number.Decimal(v, number.MaxFractionDigits(3)))
+				val = mp.Sprint(number.Decimal(v, number.NoSeparator(), number.MaxFractionDigits(3)))
 			}
 		case time.Time:
 			if !v.IsZero() {

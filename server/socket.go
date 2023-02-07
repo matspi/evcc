@@ -94,7 +94,7 @@ func encode(v interface{}) (string, error) {
 	case time.Time:
 		var b []byte
 		if !val.IsZero() {
-			b, _ = val.MarshalText()
+			b, _ = val.Round(time.Second).Local().MarshalText()
 		}
 		s = fmt.Sprintf(`"%s"`, string(b))
 	case time.Duration:
@@ -122,8 +122,8 @@ func kv(p util.Param) string {
 
 	var msg strings.Builder
 	msg.WriteString("\"")
-	if p.LoadPoint != nil {
-		msg.WriteString(fmt.Sprintf("loadpoints.%d.", *p.LoadPoint))
+	if p.Loadpoint != nil {
+		msg.WriteString(fmt.Sprintf("loadpoints.%d.", *p.Loadpoint))
 	}
 	msg.WriteString(p.Key)
 	msg.WriteString("\":")

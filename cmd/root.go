@@ -21,8 +21,9 @@ import (
 	"github.com/evcc-io/evcc/util/pipe"
 	"github.com/evcc-io/evcc/util/sponsor"
 	"github.com/evcc-io/evcc/util/telemetry"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	_ "github.com/joho/godotenv/autoload"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -55,9 +56,10 @@ func init() {
 
 	rootCmd.PersistentFlags().Bool(flagHeaders, false, flagHeadersDescription)
 
-	rootCmd.PersistentFlags().String(flagSqlite, "", flagSqliteDescription)
-
 	// config file options
+	rootCmd.PersistentFlags().String(flagSqlite, conf.Database.Dsn, flagSqliteDescription)
+	bindP(rootCmd, "database.dsn", flagSqlite)
+
 	rootCmd.PersistentFlags().StringP("log", "l", "info", "Log level (fatal, error, warn, info, debug, trace)")
 	bindP(rootCmd, "log")
 
@@ -86,6 +88,7 @@ func initConfig() {
 		viper.SetConfigName("evcc")
 	}
 
+	viper.SetEnvPrefix("evcc")
 	viper.AutomaticEnv() // read in environment variables that match
 
 	// print version
@@ -106,7 +109,9 @@ func runRoot(cmd *cobra.Command, args []string) {
 	var err error
 	if cfgErr := loadConfigFile(&conf); errors.As(cfgErr, &viper.ConfigFileNotFoundError{}) {
 		log.INFO.Println("missing config file - switching into demo mode")
-		demoConfig(&conf)
+		if err := demoConfig(&conf); err != nil {
+			log.FATAL.Fatal(err)
+		}
 	} else {
 		err = cfgErr
 	}
@@ -146,6 +151,9 @@ func runRoot(cmd *cobra.Command, args []string) {
 	valueChan := make(chan util.Param)
 	go tee.Run(valueChan)
 
+	// capture log messages for UI
+	util.CaptureLogs(valueChan)
+
 	// setup environment
 	if err == nil {
 		err = configureEnvironment(cmd, conf)
@@ -177,7 +185,7 @@ func runRoot(cmd *cobra.Command, args []string) {
 
 	// setup database
 	if err == nil && conf.Influx.URL != "" {
-		configureInflux(conf.Influx, site.LoadPoints(), tee.Attach())
+		configureInflux(conf.Influx, site, tee.Attach())
 	}
 
 	// setup mqtt publisher
@@ -241,10 +249,7 @@ func runRoot(cmd *cobra.Command, args []string) {
 
 		// show and check version
 		valueChan <- util.Param{Key: "version", Val: server.FormattedVersion()}
-		go updater.Run(log, httpd, tee, valueChan)
-
-		// capture log messages for UI
-		util.CaptureLogs(valueChan)
+		go updater.Run(log, httpd, valueChan)
 
 		// expose sponsor to UI
 		if sponsor.Subject != "" {
@@ -263,6 +268,9 @@ func runRoot(cmd *cobra.Command, args []string) {
 			once.Do(func() { close(stopC) }) // signal loop to end
 		})
 
+		// improve error message
+		err = wrapErrors(err)
+
 		publishErrorInfo(valueChan, cfgFile, err)
 
 		log.FATAL.Println(err)
@@ -277,5 +285,5 @@ func runRoot(cmd *cobra.Command, args []string) {
 	// uds health check listener
 	go server.HealthListener(site)
 
-	log.FATAL.Println(httpd.ListenAndServe())
+	log.FATAL.Println(wrapErrors(httpd.ListenAndServe()))
 }

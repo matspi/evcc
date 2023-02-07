@@ -3,6 +3,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -14,8 +15,8 @@ import (
 	"github.com/spf13/viper"
 )
 
-// logLevel parses --log area:level[,...] switch into levels per log area
-func logLevel() {
+// parseLogLevels parses --log area:level[,...] switch into levels per log area
+func parseLogLevels() {
 	levels := viper.GetStringMapString("levels")
 
 	var level string
@@ -53,11 +54,12 @@ func redact(src string) string {
 		"mac",                   // infrastructure
 		"sponsortoken", "plant", // global settings
 		"user", "password", "pin", // users
-		"token", "access", "refresh", // tokens
-		"ain", "secret", "serial", "deviceid", "machineid", // devices
+		"token", "access", "refresh", "accesstoken", "refreshtoken", // tokens, including template variations
+		"ain", "secret", "serial", "deviceid", "machineid", "idtag", // devices
+		"app", "chats", "recipients", // push messaging
 		"vin"} // vehicles
 	return regexp.
-		MustCompile(fmt.Sprintf(`\b(%s)\b.*?:.*`, strings.Join(secrets, "|"))).
+		MustCompile(fmt.Sprintf(`(?i)\b(%s)\b.*?:.*`, strings.Join(secrets, "|"))).
 		ReplaceAllString(src, "$1: *****")
 }
 
@@ -98,4 +100,25 @@ func shutdownDoneC() <-chan struct{} {
 	doneC := make(chan struct{})
 	go shutdown.Cleanup(doneC)
 	return doneC
+}
+
+func wrapErrors(err error) error {
+	if err != nil {
+		var opErr *net.OpError
+		var pathErr *os.PathError
+
+		switch {
+		case errors.As(err, &opErr):
+			if opErr.Op == "listen" && strings.Contains(opErr.Error(), "address already in use") {
+				err = fmt.Errorf("could not open port- check that evcc is not already running (%w)", err)
+			}
+
+		case errors.As(err, &pathErr):
+			if pathErr.Op == "remove" && strings.Contains(pathErr.Error(), "operation not permitted") {
+				err = fmt.Errorf("could not remove file- check that evcc is not already running (%w)", err)
+			}
+		}
+	}
+
+	return err
 }

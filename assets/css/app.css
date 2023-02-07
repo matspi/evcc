@@ -79,7 +79,7 @@ html {
 }
 
 html.no-transitions * {
-	transition-duration: 0ms !important;
+	transition: none !important;
 }
 
 body {
@@ -145,16 +145,22 @@ a:hover {
 	color: var(--evcc-background);
 }
 
-.btn-primary:hover,
-.btn-primary:active {
+.btn-primary:hover {
 	background-color: var(--evcc-accent3);
 	border-color: var(--evcc-accent3);
+}
+
+.btn-primary:active {
+	color: var(--evcc-default-text) !important;
+	background-color: var(--evcc-accent3) !important;
+	border-color: var(--evcc-accent3) !important;
 }
 
 .btn:disabled {
 	color: inherit !important;
 	background-color: inherit !important;
 	border-color: inherit !important;
+	opacity: 0.2;
 }
 
 .btn-outline-primary,
@@ -164,12 +170,25 @@ a:hover {
 	border-width: 2px;
 	border-color: var(--bs-primary);
 }
-.btn-outline-primary:hover,
-.btn-outline-primary:active {
-	color: var(--evcc-accent3);
-	background-color: transparent;
+.btn-outline-primary:hover {
+	color: var(--evcc-accent3) !important;
+	background-color: transparent !important;
 	border-width: 2px;
-	border-color: var(--evcc-accent3);
+	border-color: var(--evcc-accent3) !important;
+}
+.btn-outline-primary:active {
+	color: var(--evcc-default-text) !important;
+	background-color: var(--evcc-accent3) !important;
+	border-width: 2px;
+	border-color: var(--evcc-accent3) !important;
+}
+
+.btn-xs {
+	--bs-btn-padding-y: 0;
+	--bs-btn-padding-x: 0.5rem;
+	--bs-btn-font-size: 0.7rem;
+	--bs-btn-border-radius: 0.25rem;
+	--bs-btn-line-height: 2;
 }
 
 .text-evcc {
@@ -219,7 +238,8 @@ a:hover {
 	}
 }
 
-@media (--lg-and-up) {
+/* breakpoint lg */
+@media (min-width: 992px) {
 	.modal-lg,
 	.modal-xl {
 		--bs-modal-width: 850px;
@@ -247,7 +267,8 @@ a:hover {
 	color: var(--evcc-default-text);
 }
 
-@media (--sm-and-up) {
+/* breakpoint sm */
+@media (min-width: 576px) {
 	.modal-content {
 		padding: 2rem;
 	}
@@ -333,4 +354,9 @@ small {
 
 .dark .form-switch .form-check-input:checked {
 	background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%2328293e'/%3e%3c/svg%3e");
+}
+/* fix desktop safari formatting */
+input::-webkit-datetime-edit {
+	display: block;
+	padding: 0;
 }

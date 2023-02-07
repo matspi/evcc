@@ -13,12 +13,11 @@ LD_FLAGS := -X github.com/evcc-io/evcc/server.Version=$(VERSION) -X github.com/e
 BUILD_ARGS := -ldflags='$(LD_FLAGS)'
 
 # docker
-DOCKER_IMAGE := andig/evcc
+DOCKER_IMAGE := evcc/evcc
 PLATFORM := linux/amd64,linux/arm64,linux/arm/v6
 
 # gokrazy image
 IMAGE_FILE := evcc_$(TAG_NAME).image
-IMAGE_ROOTFS := evcc_$(TAG_NAME).rootfs
 IMAGE_OPTIONS := -hostname evcc -http_port 8080 github.com/gokrazy/serial-busybox github.com/gokrazy/breakglass github.com/gokrazy/mkfs github.com/gokrazy/wifi github.com/evcc-io/evcc
 
 # deb
@@ -28,7 +27,7 @@ PACKAGES = ./release
 GOROOT := $(shell go env GOROOT)
 CURRDIR := $(shell pwd)
 
-default:: build
+default:: ui build
 
 all:: clean install install-ui ui assets lint test-ui lint-ui test build
 
@@ -59,9 +58,12 @@ lint-ui::
 test-ui::
 	npm test
 
+toml:
+	go run packaging/toml.go
+
 test::
 	@echo "Running testsuite"
-	go test $(BUILD_TAGS) ./...
+	CGO_ENABLED=0 go test $(BUILD_TAGS) ./...
 
 porcelain::
 	gofmt -w -l $$(find . -name '*.go')
@@ -70,7 +72,7 @@ porcelain::
 
 build::
 	@echo Version: $(VERSION) $(SHA) $(BUILD_DATE)
-	go build -v $(BUILD_TAGS) $(BUILD_ARGS)
+	CGO_ENABLED=0 go build -v $(BUILD_TAGS) $(BUILD_ARGS)
 
 snapshot:
 	goreleaser --snapshot --skip-publish --rm-dist
@@ -105,23 +107,24 @@ apt-release::
 	)
 
 # gokrazy image
-image::
+gokrazy::
 	go install github.com/gokrazy/tools/cmd/gokr-packer@main
 	mkdir -p flags/github.com/gokrazy/breakglass
 	echo "-forward=private-network" > flags/github.com/gokrazy/breakglass/flags.txt
 	mkdir -p flags/github.com/evcc-io/evcc
-	echo "--sqlite /perm/evcc.db" > flags/github.com/evcc-io/evcc/flags.txt
+	echo "--sqlite=/perm/evcc.db" > flags/github.com/evcc-io/evcc/flags.txt
+	mkdir -p env/github.com/evcc-io/evcc
+	echo "EVCC_NETWORK_PORT=80" > env/github.com/evcc-io/evcc/env.txt
 	mkdir -p buildflags/github.com/evcc-io/evcc
 	echo "$(BUILD_TAGS),gokrazy" > buildflags/github.com/evcc-io/evcc/buildflags.txt
 	echo "-ldflags=$(LD_FLAGS)" >> buildflags/github.com/evcc-io/evcc/buildflags.txt
-	gokr-packer -overwrite=$(IMAGE_FILE) -target_storage_bytes=1258299392 $(IMAGE_OPTIONS)
-	gzip -f $(IMAGE_FILE)
+	gokr-packer -hostname evcc -http_port 8080 -overwrite=$(IMAGE_FILE) -target_storage_bytes=1258299392 $(IMAGE_OPTIONS)
+	# gzip -f $(IMAGE_FILE)
 
-image-rootfs::
-	gokr-packer -overwrite_root=$(IMAGE_ROOTFS) $(IMAGE_OPTIONS)
-	gzip -f $(IMAGE_ROOTFS)
+gokrazy-run::
+	MACHINE=arm64 IMAGE_FILE=$(IMAGE_FILE) ./packaging/gokrazy/run.sh
 
-image-update::
+gokrazy-update::
 	gokr-packer -update yes $(IMAGE_OPTIONS)
 
 soc::

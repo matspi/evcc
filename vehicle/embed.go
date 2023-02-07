@@ -7,6 +7,7 @@ import (
 
 type embed struct {
 	Title_       string           `mapstructure:"title"`
+	Icon_        string           `mapstructure:"icon"`
 	Capacity_    float64          `mapstructure:"capacity"`
 	Phases_      int              `mapstructure:"phases"`
 	Identifiers_ []string         `mapstructure:"identifiers"`
@@ -17,6 +18,16 @@ type embed struct {
 // Title implements the api.Vehicle interface
 func (v *embed) Title() string {
 	return v.Title_
+}
+
+// SetTitle implements the api.TitleSetter interface
+func (v *embed) SetTitle(title string) {
+	v.Title_ = title
+}
+
+// Icon implements the api.Vehicle interface
+func (v *embed) Icon() string {
+	return v.Icon_
 }
 
 // Capacity implements the api.Vehicle interface
@@ -41,12 +52,12 @@ func (v *embed) OnIdentified() api.ActionConfig {
 
 var _ api.FeatureDescriber = (*embed)(nil)
 
-// Features implements the api.Describer interface
+// Features implements the api.FeatureDescriber interface
 func (v *embed) Features() []api.Feature {
 	return v.Features_
 }
 
-// Features implements the api.Describer interface
+// Features implements the api.FeatureDescriber interface
 func (v *embed) Has(f api.Feature) bool {
 	return slices.Contains(v.Features_, f)
 }

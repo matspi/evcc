@@ -11,7 +11,7 @@ import (
 
 // Event is a notification event
 type Event struct {
-	LoadPoint *int // optional loadpoint id
+	Loadpoint *int // optional loadpoint id
 	Event     string
 }
 
@@ -28,7 +28,7 @@ type EventTemplate struct {
 // Hub subscribes to event notifications and sends them to client devices
 type Hub struct {
 	definitions map[string]EventTemplate
-	sender      []Sender
+	sender      []Messenger
 	cache       *util.Cache
 }
 
@@ -62,7 +62,7 @@ func NewHub(cc map[string]EventTemplateConfig, cache *util.Cache) (*Hub, error) 
 }
 
 // Add adds a sender to the list of senders
-func (h *Hub) Add(sender Sender) {
+func (h *Hub) Add(sender Messenger) {
 	h.sender = append(h.sender, sender)
 }
 
@@ -73,9 +73,14 @@ func (h *Hub) apply(ev Event, tmpl *template.Template) (string, error) {
 	// let cache catch up, refs reverted https://github.com/evcc-io/evcc/pull/445
 	time.Sleep(100 * time.Millisecond)
 
+	// loadpoint id
+	if ev.Loadpoint != nil {
+		attr["loadpoint"] = *ev.Loadpoint + 1
+	}
+
 	// get all values from cache
 	for _, p := range h.cache.All() {
-		if p.LoadPoint == nil || ev.LoadPoint == p.LoadPoint {
+		if p.Loadpoint == nil || ev.Loadpoint == p.Loadpoint {
 			attr[p.Key] = p.Val
 		}
 	}
@@ -91,6 +96,8 @@ func (h *Hub) apply(ev Event, tmpl *template.Template) (string, error) {
 
 // Run is the Hub's main publishing loop
 func (h *Hub) Run(events <-chan Event) {
+	log := util.NewLogger("push")
+
 	for ev := range events {
 		if len(h.sender) == 0 {
 			continue

@@ -9,9 +9,10 @@ import (
 
 	paho "github.com/eclipse/paho.mqtt.golang"
 	"github.com/evcc-io/evcc/api"
+	"github.com/evcc-io/evcc/charger/eebus"
 	"github.com/evcc-io/evcc/cmd/shutdown"
 	"github.com/evcc-io/evcc/core"
-	"github.com/evcc-io/evcc/core/loadpoint"
+	"github.com/evcc-io/evcc/core/site"
 	"github.com/evcc-io/evcc/hems"
 	"github.com/evcc-io/evcc/provider/javascript"
 	"github.com/evcc-io/evcc/provider/mqtt"
@@ -27,9 +28,10 @@ import (
 	"github.com/evcc-io/evcc/util/request"
 	"github.com/evcc-io/evcc/util/sponsor"
 	"github.com/libp2p/zeroconf/v2"
-	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	"golang.org/x/text/currency"
 )
 
@@ -50,8 +52,9 @@ func loadConfigFile(conf *config) error {
 		}
 	}
 
+	// parse log levels after reading config
 	if err == nil {
-		logLevel()
+		parseLogLevels()
 	}
 
 	return err
@@ -68,9 +71,9 @@ func configureEnvironment(cmd *cobra.Command, conf config) (err error) {
 		err = machine.CustomID(conf.Plant)
 	}
 
-	// setup sponsorship
-	if err == nil && conf.SponsorToken != "" {
-		err = sponsor.ConfigureSponsorship(conf.SponsorToken)
+	// setup sponsorship (allow env override)
+	if token := viper.GetString("sponsortoken"); err == nil && token != "" {
+		err = sponsor.ConfigureSponsorship(token)
 	}
 
 	// setup translations
@@ -80,7 +83,7 @@ func configureEnvironment(cmd *cobra.Command, conf config) (err error) {
 
 	// setup persistence
 	if err == nil && conf.Database.Dsn != "" {
-		if flag := cmd.Flags().Lookup(flagSqlite); flag.Changed {
+		if flag := cmd.Flags().Lookup(flagSqlite); flag != nil && flag.Changed {
 			conf.Database.Type = "sqlite"
 			conf.Database.Dsn = flag.Value.String()
 		}
@@ -121,7 +124,7 @@ func configureDatabase(conf dbConfig) error {
 }
 
 // configureInflux configures influx database
-func configureInflux(conf server.InfluxConfig, loadPoints []loadpoint.API, in <-chan util.Param) {
+func configureInflux(conf server.InfluxConfig, site site.API, in <-chan util.Param) {
 	influx := server.NewInfluxClient(
 		conf.URL,
 		conf.Token,
@@ -132,10 +135,10 @@ func configureInflux(conf server.InfluxConfig, loadPoints []loadpoint.API, in <-
 	)
 
 	// eliminate duplicate values
-	dedupe := pipe.NewDeduplicator(30*time.Minute, "vehicleCapacity", "vehicleSoC", "vehicleRange", "vehicleOdometer", "chargedEnergy", "chargeRemainingEnergy")
+	dedupe := pipe.NewDeduplicator(30*time.Minute, "vehicleCapacity", "vehicleSoc", "vehicleRange", "vehicleOdometer", "chargedEnergy", "chargeRemainingEnergy")
 	in = dedupe.Pipe(in)
 
-	go influx.Run(loadPoints, in)
+	go influx.Run(site, in)
 }
 
 // setup mqtt
@@ -155,9 +158,11 @@ func configureMQTT(conf mqttConfig) error {
 }
 
 // setup javascript
-func configureJavascript(conf map[string]interface{}) error {
-	if err := javascript.Configure(conf); err != nil {
-		return fmt.Errorf("failed configuring javascript: %w", err)
+func configureJavascript(conf []javascriptConfig) error {
+	for _, cc := range conf {
+		if _, err := javascript.RegisteredVM(cc.VM, cc.Script); err != nil {
+			return fmt.Errorf("failed configuring javascript: %w", err)
+		}
 	}
 	return nil
 }
@@ -191,12 +196,12 @@ func configureMDNS(conf networkConfig) error {
 // setup EEBus
 func configureEEBus(conf map[string]interface{}) error {
 	var err error
-	if server.EEBusInstance, err = server.NewEEBus(conf); err != nil {
+	if eebus.Instance, err = eebus.NewServer(conf); err != nil {
 		return fmt.Errorf("failed configuring eebus: %w", err)
 	}
 
-	go server.EEBusInstance.Run()
-	shutdown.Register(server.EEBusInstance.Shutdown)
+	eebus.Instance.Run()
+	shutdown.Register(eebus.Instance.Shutdown)
 
 	return nil
 }
@@ -211,7 +216,7 @@ func configureMessengers(conf messagingConfig, cache *util.Cache) (chan push.Eve
 	}
 
 	for _, service := range conf.Services {
-		impl, err := push.NewMessengerFromConfig(service.Type, service.Other)
+		impl, err := push.NewFromConfig(service.Type, service.Other)
 		if err != nil {
 			return messageChan, fmt.Errorf("failed configuring push service %s: %w", service.Type, err)
 		}
@@ -224,7 +229,7 @@ func configureMessengers(conf messagingConfig, cache *util.Cache) (chan push.Eve
 }
 
 func configureTariffs(conf tariffConfig) (tariff.Tariffs, error) {
-	var grid, feedin api.Tariff
+	var grid, feedin, planner api.Tariff
 	var currencyCode currency.Unit = currency.EUR
 	var err error
 
@@ -234,25 +239,37 @@ func configureTariffs(conf tariffConfig) (tariff.Tariffs, error) {
 
 	if conf.Grid.Type != "" {
 		grid, err = tariff.NewFromConfig(conf.Grid.Type, conf.Grid.Other)
+		if err != nil {
+			grid = nil
+			log.ERROR.Printf("failed configuring grid tariff: %v", err)
+		}
 	}
 
-	if err == nil && conf.FeedIn.Type != "" {
+	if conf.FeedIn.Type != "" {
 		feedin, err = tariff.NewFromConfig(conf.FeedIn.Type, conf.FeedIn.Other)
+		if err != nil {
+			feedin = nil
+			log.ERROR.Printf("failed configuring feed-in tariff: %v", err)
+		}
 	}
 
-	if err != nil {
-		err = fmt.Errorf("failed configuring tariff: %w", err)
+	if conf.Planner.Type != "" {
+		planner, err = tariff.NewFromConfig(conf.Planner.Type, conf.Planner.Other)
+		if err != nil {
+			planner = nil
+			log.ERROR.Printf("failed configuring planner tariff: %v", err)
+		}
 	}
 
-	tariffs := tariff.NewTariffs(currencyCode, grid, feedin)
+	tariffs := tariff.NewTariffs(currencyCode, grid, feedin, planner)
 
-	return *tariffs, err
+	return *tariffs, nil
 }
 
 func configureSiteAndLoadpoints(conf config) (site *core.Site, err error) {
 	if err = cp.configure(conf); err == nil {
-		var loadPoints []*core.LoadPoint
-		loadPoints, err = configureLoadPoints(conf, cp)
+		var loadpoints []*core.Loadpoint
+		loadpoints, err = configureLoadpoints(conf, cp)
 
 		var tariffs tariff.Tariffs
 		if err == nil {
@@ -260,20 +277,24 @@ func configureSiteAndLoadpoints(conf config) (site *core.Site, err error) {
 		}
 
 		if err == nil {
-			// list of vehicles
-			vehicles := lo.MapToSlice(cp.vehicles, func(_ string, v api.Vehicle) api.Vehicle {
-				return v
-			})
+			// list of vehicles ordered by name
+			keys := maps.Keys(cp.vehicles)
+			slices.Sort(keys)
 
-			site, err = configureSite(conf.Site, cp, loadPoints, vehicles, tariffs)
+			vehicles := make([]api.Vehicle, 0, len(cp.vehicles))
+			for _, k := range keys {
+				vehicles = append(vehicles, cp.vehicles[k])
+			}
+
+			site, err = configureSite(conf.Site, cp, loadpoints, vehicles, tariffs)
 		}
 	}
 
 	return site, err
 }
 
-func configureSite(conf map[string]interface{}, cp *ConfigProvider, loadPoints []*core.LoadPoint, vehicles []api.Vehicle, tariffs tariff.Tariffs) (*core.Site, error) {
-	site, err := core.NewSiteFromConfig(log, cp, conf, loadPoints, vehicles, tariffs)
+func configureSite(conf map[string]interface{}, cp *ConfigProvider, loadpoints []*core.Loadpoint, vehicles []api.Vehicle, tariffs tariff.Tariffs) (*core.Site, error) {
+	site, err := core.NewSiteFromConfig(log, cp, conf, loadpoints, vehicles, tariffs)
 	if err != nil {
 		return nil, fmt.Errorf("failed configuring site: %w", err)
 	}
@@ -281,7 +302,7 @@ func configureSite(conf map[string]interface{}, cp *ConfigProvider, loadPoints [
 	return site, nil
 }
 
-func configureLoadPoints(conf config, cp *ConfigProvider) (loadPoints []*core.LoadPoint, err error) {
+func configureLoadpoints(conf config, cp *ConfigProvider) (loadpoints []*core.Loadpoint, err error) {
 	lpInterfaces, ok := viper.AllSettings()["loadpoints"].([]interface{})
 	if !ok || len(lpInterfaces) == 0 {
 		return nil, errors.New("missing loadpoints")
@@ -294,13 +315,13 @@ func configureLoadPoints(conf config, cp *ConfigProvider) (loadPoints []*core.Lo
 		}
 
 		log := util.NewLogger("lp-" + strconv.Itoa(id+1))
-		lp, err := core.NewLoadPointFromConfig(log, cp, lpc)
+		lp, err := core.NewLoadpointFromConfig(log, cp, lpc)
 		if err != nil {
 			return nil, fmt.Errorf("failed configuring loadpoint: %w", err)
 		}
 
-		loadPoints = append(loadPoints, lp)
+		loadpoints = append(loadpoints, lp)
 	}
 
-	return loadPoints, nil
+	return loadpoints, nil
 }
