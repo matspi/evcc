@@ -72,6 +72,7 @@ vehicles = "Parking"
 battery = "Battery"
 batteryCharge = "Battery charging"
 batteryDischarge = "Battery discharging"
+batteryTooltip = "{energy} of {total} ({soc})"
 gridImport = "Grid use"
 homePower = "Consumption"
 loadpoints = "Charger| Charger | {count} chargers"
@@ -157,9 +158,11 @@ label = "Limit"
 noLimit = "none"
 
 [main.vehicle]
-changeVehicle = "Change Vehicle"
+addVehicle = "Add vehicle"
+changeVehicle = "Change vehicle"
 detectionActive = "Detecting vehicle…"
 fallbackName = "Vehicle"
+moreActions = "More actions"
 none = "No vehicle"
 targetSoc = "Limit"
 unknown = "Guest vehicle"
@@ -179,8 +182,8 @@ disconnected = "Disconnected."
 minCharge = "Minimum charging to {soc}%."
 pvDisable = "Not enough surplus. Pausing in {remaining}…"
 pvEnable = "Surplus available. Starting in {remaining}…"
-scale1p = "Reducing to 1-phase power in {remaining}…"
-scale3p = "Increasing to 3-phase power in {remaining}…"
+scale1p = "Reducing to 1-phase charging in {remaining}…"
+scale3p = "Increasing to 3-phase charging in {remaining}…"
 targetChargeActive = "Target charge active…"
 targetChargePlanned = "Target charging starts at {time}."
 targetChargeWaitForVehicle = "Target charge ready. Waiting for vehicle…"
@@ -235,9 +238,18 @@ label = "Grid details"
 none = "none"
 price = "price"
 
+[settings.hiddenFeatures]
+label = "Experimental"
+value = "Show experimental UI features."
+
 [settings.language]
 auto = "Automatic"
 label = "Language"
+
+[settings.sponsorToken]
+expires = "You sponsor token expires {inXDays}. {getNewToken} and update your configuration file."
+getNew = "Grab a fresh one"
+hint = "Note: We will automate this in the future."
 
 [settings.telemetry]
 label = "Telemetry"
@@ -264,3 +276,8 @@ lineError = "Error in {0}."
 lineErrorLink = "line {0}"
 restartButton = "Restart"
 title = "Startup Error"
+
+[vehicleSettings]
+cancel = "Cancel"
+template = "Manufacturer"
+test = "Test"

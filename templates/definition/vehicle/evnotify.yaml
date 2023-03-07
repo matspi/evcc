@@ -10,13 +10,13 @@ params:
   - name: token
     required: true
   - name: capacity
-    valuetype: float
+    type: float
   - name: phases
     advanced: true
   - name: icon
     default: car
     advanced: true
-  - preset: vehicleidentify
+  - preset: vehicle-identify
 render: |
   type: custom
   {{- if ne .title "" }}

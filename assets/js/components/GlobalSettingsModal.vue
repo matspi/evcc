@@ -20,7 +20,8 @@
 						></button>
 					</div>
 					<div class="modal-body">
-						<div class="container">
+						<SponsorTokenExpires :sponsorTokenExpires="sponsorTokenExpires" />
+						<div class="container mx-0 px-0">
 							<FormRow id="settingsDesign" :label="$t('settings.theme.label')">
 								<SelectGroup
 									id="settingsDesign"
@@ -83,6 +84,26 @@
 							<FormRow id="telemetryEnabled" :label="$t('settings.telemetry.label')">
 								<TelemetrySettings :sponsor="sponsor" class="mt-1 mb-0" />
 							</FormRow>
+							<FormRow
+								v-if="isNightly"
+								id="hiddenFeaturesEnabled"
+								:label="`${$t('settings.hiddenFeatures.label')} 🧪`"
+							>
+								<div class="form-check form-switch my-1">
+									<input
+										id="hiddenFeaturesEnabled"
+										v-model="hiddenFeatures"
+										class="form-check-input"
+										type="checkbox"
+										role="switch"
+									/>
+									<div class="form-check-label">
+										<label for="telemetryEnabled">
+											{{ $t("settings.hiddenFeatures.value") }}
+										</label>
+									</div>
+								</div>
+							</FormRow>
 						</div>
 					</div>
 				</div>
@@ -93,20 +114,23 @@
 
 <script>
 import TelemetrySettings from "./TelemetrySettings.vue";
+import SponsorTokenExpires from "./SponsorTokenExpires.vue";
 import FormRow from "./FormRow.vue";
 import SelectGroup from "./SelectGroup.vue";
 import { getLocalePreference, setLocalePreference, LOCALES, removeLocalePreference } from "../i18n";
 import { getThemePreference, setThemePreference, THEMES } from "../theme";
 import { getUnits, setUnits, UNITS } from "../units";
 import { getGridDetails, setGridDetails, GRID_DETAILS } from "../gridDetails";
+import { getHiddenFeatures, setHiddenFeatures } from "../featureflags";
 
 export default {
 	name: "GlobalSettingsModal",
-	components: { TelemetrySettings, FormRow, SelectGroup },
+	components: { TelemetrySettings, FormRow, SelectGroup, SponsorTokenExpires },
 	props: {
 		sponsor: String,
 		hasPrice: Boolean,
 		hasCo2: Boolean,
+		sponsorTokenExpires: Number,
 	},
 	data: function () {
 		return {
@@ -114,6 +138,7 @@ export default {
 			language: getLocalePreference() || "",
 			unit: getUnits(),
 			gridDetails: getGridDetails(),
+			hiddenFeatures: getHiddenFeatures(),
 			THEMES,
 			UNITS,
 			GRID_DETAILS,
@@ -128,6 +153,9 @@ export default {
 			locales.sort((a, b) => (a.name < b.name ? -1 : 1));
 			return locales;
 		},
+		isNightly: () => {
+			return !!window?.evcc?.commit;
+		},
 	},
 	watch: {
 		unit(value) {
@@ -138,6 +166,9 @@ export default {
 		},
 		theme(value) {
 			setThemePreference(value);
+		},
+		hiddenFeatures(value) {
+			setHiddenFeatures(value);
 		},
 		language(value) {
 			const i18n = this.$root.$i18n;
@@ -155,9 +186,3 @@ export default {
 	},
 };
 </script>
-<style scoped>
-.container {
-	margin-left: calc(var(--bs-gutter-x) * -0.5);
-	margin-right: calc(var(--bs-gutter-x) * -0.5);
-}
-</style>

@@ -18,7 +18,7 @@
 				:loadpoints="loadpoints"
 				:vehicles="vehicles"
 			/>
-			<Vehicles v-if="showParkingLot" />
+			<VehcileSettingsModal />
 			<Footer v-bind="footer"></Footer>
 		</div>
 	</div>
@@ -28,9 +28,9 @@
 import "@h2d2/shopicons/es/regular/arrowup";
 import TopNavigation from "./TopNavigation.vue";
 import Notifications from "./Notifications.vue";
+import VehcileSettingsModal from "./VehicleSettingsModal.vue";
 import Energyflow from "./Energyflow/Energyflow.vue";
 import Loadpoints from "./Loadpoints.vue";
-import Vehicles from "./Vehicles.vue";
 import Footer from "./Footer.vue";
 import formatter from "../mixins/formatter";
 import collector from "../mixins/collector";
@@ -43,7 +43,7 @@ export default {
 		Footer,
 		Notifications,
 		TopNavigation,
-		Vehicles,
+		VehcileSettingsModal,
 	},
 	mixins: [formatter, collector],
 	props: {
@@ -58,6 +58,7 @@ export default {
 		homePower: Number,
 		pvConfigured: Boolean,
 		pvPower: Number,
+		pv: Array,
 		batteryConfigured: Boolean,
 		batteryPower: Number,
 		batterySoc: Number,
@@ -90,6 +91,7 @@ export default {
 		uploadMessage: String,
 		uploadProgress: Number,
 		sponsor: String,
+		sponsorTokenExpires: Number,
 	},
 	computed: {
 		energyflow: function () {
@@ -103,7 +105,7 @@ export default {
 		},
 		vehicleIcons: function () {
 			if (this.activeLoadpointsCount) {
-				return this.activeLoadpoints.map((lp) => lp.vehicleIcon || "car");
+				return this.activeLoadpoints.map((lp) => lp.chargerIcon || lp.vehicleIcon || "car");
 			}
 			return ["car"];
 		},

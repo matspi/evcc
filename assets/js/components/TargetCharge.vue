@@ -242,16 +242,17 @@ export default {
 			if (
 				this.isModalVisible &&
 				!this.timeInThePast &&
-				(this.targetEnergy || this.targetSoc)
+				(this.targetEnergy || this.targetSoc) &&
+				!isNaN(this.selectedTargetTime)
 			) {
 				try {
 					const opts = {
 						params: { targetTime: this.selectedTargetTime },
 					};
 					this.plan = (
-						await api.get(`/loadpoints/${this.id}/target/plan`, opts)
+						await api.get(`loadpoints/${this.id}/target/plan`, opts)
 					).data.result;
-					this.tariff = (await api.get(`/tariff/planner`)).data.result;
+					this.tariff = (await api.get(`tariff/planner`)).data.result;
 				} catch (e) {
 					console.error(e);
 				}
@@ -301,12 +302,12 @@ export default {
 				this.$t("main.targetCharge.tomorrow"),
 			];
 			for (let i = 0; i < 7; i++) {
-				const dayNumber = date.toLocaleDateString("default", {
+				const dayNumber = date.toLocaleDateString(this.$i18n.locale, {
 					month: "short",
 					day: "numeric",
 				});
 				const dayName =
-					labels[i] || date.toLocaleDateString("default", { weekday: "long" });
+					labels[i] || date.toLocaleDateString(this.$i18n.locale, { weekday: "long" });
 				options.push({
 					value: this.fmtDayString(date),
 					name: `${dayNumber} (${dayName})`,

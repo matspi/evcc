@@ -191,6 +191,13 @@ a:hover {
 	--bs-btn-line-height: 2;
 }
 
+.dark .btn-outline-secondary {
+	--bs-btn-color: var(--bs-gray-bright);
+	--bs-btn-border-color: var(--bs-gray-bright);
+	--bs-btn-hover-bg: var(--bs-gray-bright);
+	--bs-btn-hover-color: var(--bs-gray-dark);
+}
+
 .text-evcc {
 	color: var(--evcc-dark-green);
 }
@@ -359,4 +366,15 @@ small {
 input::-webkit-datetime-edit {
 	display: block;
 	padding: 0;
+}
+
+.tooltip {
+	--bs-tooltip-opacity: 1;
+	--bs-tooltip-bg: var(--bs-gray-deep);
+	--bs-tooltip-color: var(--bs-white);
+}
+
+.dark .tooltip {
+	--bs-tooltip-bg: var(--bs-white);
+	--bs-tooltip-color: var(--bs-gray-deep);
 }

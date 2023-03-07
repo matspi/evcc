@@ -60,15 +60,16 @@ func sessionHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	whereQuery := "charged_kwh>=0.05 and strftime('%Y', created) like ? and strftime('%m', created) like ?"
-	if txn := dbserver.Instance.Where(whereQuery, fmtYear, fmtMonth).Order("created desc").Find(&res); txn.Error != nil {
+	// TODO support other databases than Sqlite
+	whereQuery := "charged_kwh>=0.05 AND strftime('%Y', created) LIKE ? AND strftime('%m', created) LIKE ?"
+	if txn := dbserver.Instance.Where(whereQuery, fmtYear, fmtMonth).Order("created DESC").Find(&res); txn.Error != nil {
 		jsonError(w, http.StatusInternalServerError, txn.Error)
 		return
 	}
 
 	// prepare data
-	for _, s := range res {
-		s.Odometer = math.Round(s.Odometer*10) / 10
+	for i, s := range res {
+		res[i].Odometer = math.Round(s.Odometer*10) / 10
 	}
 
 	if r.URL.Query().Get("format") == "csv" {

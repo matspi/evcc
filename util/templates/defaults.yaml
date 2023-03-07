@@ -10,14 +10,14 @@ params:
     description:
       generic: Modbus ID
     default: 1
-    valuetype: number
+    type: number
   - name: modbusdevice
     description:
-      de: Geräteadresse
-      en: Device address
+      de: Gerätename
+      en: Device name
     help:
-      de: USB-RS485 Adapter Adresse
-      en: USB-RS485 Adapter address
+      de: USB-RS485 Gerätename
+      en: USB-RS485 device name
     example: /dev/ttyUSB0
   - name: modbusbaudrate
     description:
@@ -27,13 +27,13 @@ params:
       de: Prüfe die Geräteeinstellungen, typische Werte sind 9600, 19200, 38400, 57600, 115200
       en: Check the device settings, typical values are 9600, 19200, 38400, 57600, 115200
     default: 9600
-    valuetype: number
+    type: number
   - name: modbuscomset
     description:
       de: ComSet
       en: ComSet
     help:
-      de: Kommunikationsparameter für den Adapter
+      de: Kommunikationsparameter des Adapters
       en: Communication parameter for the adapter
     default: 8N1
   - name: host
@@ -60,7 +60,7 @@ params:
     help:
       de: Port
       en: Port
-    valuetype: number
+    type: number
   - name: interface
     description:
       de: Netzwerkinterface
@@ -83,7 +83,7 @@ params:
       en: Username
     help:
       de: Benutzerkonto (bspw. E-Mail Adresse, User Id, etc.)
-      en: User-account (e.g. email address, user id, etc.)
+      en: User account (e.g. email address, user id, etc.)
   - name: password
     description:
       de: Passwort
@@ -100,7 +100,7 @@ params:
       de: Akkukapazität in kWh
       en: Battery capacity in kWh
     example: "50"
-    valuetype: float
+    type: float
     usages: ["vehicle", "battery"]
   - name: vin
     description:
@@ -118,7 +118,7 @@ params:
       de: Die maximale Anzahl der Phasen welche genutzt werden können
       en: The maximum number of phases which can be used
     example: 3
-    valuetype: number
+    type: number
   - name: connector
     description:
       de: Ladepunkt (falls >1 Ladepunkt)
@@ -133,7 +133,7 @@ params:
       de: Zeitintervall nach dem Daten erneut vom Fahrzeug abgefragt werden
       en: Time interval with when data should be reloaded from the vehicle
     advanced: true
-    valuetype: duration
+    type: duration
     example: 5m
   - name: cloud
     description:
@@ -158,40 +158,40 @@ params:
         - No waiting for a new evcc version in this case and then requiring an update
     requirements:
       evcc: ["sponsorship"]
-    valuetype: bool
+    type: bool
   - name: timeout
     description:
       de: Zeitüberschreitung
       en: Timeout
     advanced: true
     example: 10s
-    valuetype: duration
+    type: duration
   - name: mode
     description:
-      de: Standard-Lademodus, wenn ein Fahrzeug angeschlossen ist
+      de: Standardlademodus, wenn ein Fahrzeug angeschlossen ist
       en: Default charging mode when a vehicle is connected
     help:
       de: Möglich sind Off, Now, MinPV und PV, oder leer wenn keiner definiert werden soll
       en: Possible values are Off, Now, MinPV and PV, or empty if none should be set
-    valuetype: chargemodes
+    type: chargemodes
   - name: minsoc
     description:
       de: Minimaler Ladestand (Soc) in %
       en: Minimum state of charge (Soc) in %
     help:
-      de: Lade sofort mit maximaler Geschwindigkeit bis zu dem angegeben Ladestand, wenn der Lademodus nicht auf 'Aus' steht
-      en: Charge immediately with maximum power up to the defined state of charge, if the charge mode is not set to 'OFF'
+      de: Ladung mit maximaler Geschwindigkeit bis zu dem angegeben Ladestand unabhängig PV-Erzeugung, wenn der Lademodus nicht auf 'Aus' steht
+      en: Immediate charging with maximum power up to the defined state of charge independently from solar production if the charge mode is not set to 'OFF'
     example: 25
-    valuetype: number
+    type: number
   - name: targetsoc
     description:
-      de: Ziel-Ladestand (Soc) in %
+      de: Zielladestand (Soc) in %
       en: Target state of charge (Soc) in %
     help:
       de: Bis zu welchem Ladestand (Soc) soll das Fahrzeug geladen werden
       en: Until which state of charge (Soc) should the vehicle be charged
     example: 80
-    valuetype: number
+    type: number
   - name: mincurrent
     description:
       de: Minimale Stromstärke in Ampere (A)
@@ -200,7 +200,7 @@ params:
       de: Definiert die minimale Stromstärke pro angeschlossener Phase mit welcher das Fahrzeug geladen werden soll
       en: The minimum amperage per connected phase with which the car should be charged
     example: 6
-    valuetype: number
+    type: number
   - name: maxcurrent
     description:
       de: Maximale Stromstärke in Ampere (A)
@@ -209,7 +209,7 @@ params:
       de: Definiert die maximale Stromstärke pro angeschlossener Phase mit welcher das Fahrzeug geladen werden soll
       en: The maximum amperage per connected phase with which the car shuold be charged
     example: 16
-    valuetype: number
+    type: number
   - name: identifiers
     description:
       de: Identifikation
@@ -217,7 +217,15 @@ params:
     help:
       de: "Kann meist erst später eingetragen werden, siehe: https://docs.evcc.io/docs/guides/vehicles/#erkennung-des-fahrzeugs-an-der-wallbox"
       en: "Mostly this can be added later, see: https://docs.evcc.io/docs/guides/vehicles/#erkennung-des-fahrzeugs-an-der-wallbox"
-    valuetype: stringlist
+    type: stringlist
+  - name: priority
+    description:
+      de: Priorität
+      en: Priority
+    help:
+      de: Priorität des Ladepunktes oder Fahrzeugs in Relation zu anderen Ladepunkten oder Fahrzeugen für die Zuweisung von PV-Energie
+      en: Priority of the loadpoint or vehicle in relation to other loadpoints or vehicles for allocating pv energy
+    type: number
   - name: standbypower
     description:
       de: Standby-Leistung in W
@@ -225,7 +233,7 @@ params:
     help:
       de: Leistung oberhalb des angegebenen Wertes wird als Ladeleistung gewertet
       en: Power values above this value will be considered as charging pow
-    valuetype: number
+    type: number
   - name: language
     description:
       de: Sprache
@@ -240,32 +248,49 @@ params:
       de: Icon
       en: Icon
     help:
-      de: "Darstellung in der UI. Mögliche Werte: bike, bus, car, heater, heatercooler, heatpump, moped, motorcycle, plug, scooter, tractor, van, waterheater"
-      en: "Visible in UI. Possible values: bike, bus, car, heater, heatercooler, heatpump, moped, motorcycle, plug, scooter, tractor, van, waterheater"
+      de: "Icon in der Benutzeroberfläche"
+      en: "Icon as shown in user interface"
+    type: choice
     validvalues:
-      [
-        "bike",
-        "bus",
-        "car",
-        "heater",
-        "heatercooler",
-        "heatpump",
-        "moped",
-        "motorcycle",
-        "plug",
-        "scooter",
-        "tractor",
-        "van",
-        "waterheater",
-      ]
+      - bike
+      - bus
+      - car
+      - heater
+      - heatercooler
+      - heatpump
+      - moped
+      - motorcycle
+      - plug
+      - scooter
+      - tractor
+      - van
+      - waterheater
   - name: ski
     required: true
+    description:
+      en: Subject Key Identifier (SKI)
+      de: Identifikationsschlüssel (SKI)
     help:
-      en: The SKI of the wallbox, can usually be found on the web interface of the wallbox
-      de: Die SKI der Wallbox, ist üblicherweise im Web Interface der Wallbox zu finden
+      en: The SKI of the wallbox, usually found on the web interface of the wallbox
+      de: Die SKI der Wallbox, üblicherweise im Web Interface der Wallbox zu finden
+  - name: uri
+    description:
+      generic: URI
+    help:
+      en: HTTP(S) address
+      de: HTTP(S) Adresse
+  - name: ain
+    mask: true
+    example: "307788992233"
+    description:
+      en: Actor Identification Number (AIN)
+      de: Aktoridentifikationsnummer (AIN)
+    help:
+      en: The AIN is printed on the type label on the back of the device. Embed it in double quotes in case of leading zeroes.
+      de: Die AIN ist auf dem Typenschild auf der Geräterückseite aufgedruckt. Bei führenden Nullen bitte in doppelte Hochkommata setzen.
 
 presets:
-  vehiclebase:
+  vehicle-base:
     params:
       - name: title
       - name: user
@@ -282,31 +307,8 @@ presets:
       - name: cache
         default: 15m
         advanced: true
-        valuetype: duration
-    render: |
-      {{define "vehicle-base"}}
-      {{- if ne .title "" }}
-      title: {{ .title }}
-      {{- end }}
-      {{- if ne .icon "" }}
-      icon: {{ .icon }}
-      {{- end }}
-      user: {{ .user }}
-      password: {{ .password }}
-      {{- if ne .capacity "" }}
-      capacity: {{ .capacity }}
-      {{- end }}
-      {{- if ne .vin "" }}
-      vin: {{ .vin }}
-      {{- end }}
-      {{- if ne .phases "" }}
-      phases: {{ .phases }}
-      {{- end }}
-      {{- if ne .cache "" }}
-      cache: {{ .cache }}
-      {{- end }}
-      {{end}}
-  vehicleidentify:
+        type: duration
+  vehicle-identify:
     params:
       - name: mode
         advanced: true
@@ -320,62 +322,32 @@ presets:
         advanced: true
       - name: identifiers
         advanced: true
-        valuetype: stringlist
-    render: |
-      {{define "vehicle-identify"}}
-      {{- if or (ne .mode "") (ne .minSoc "") (ne .targetSoc "") (ne .minCurrent "") (ne .maxCurrent "") }}
-      onIdentify:
-      {{- if (ne .mode "") }}
-        mode: {{ .mode }}
-      {{- end }}
-      {{- if (ne .minSoc "") }}
-        minSoc: {{ .minSoc }}
-      {{- end }}
-      {{- if (ne .targetSoc "") }}
-        targetSoc: {{ .targetSoc }}
-      {{- end }}
-      {{- if (ne .minCurrent "") }}
-        minCurrent: {{ .minCurrent }}
-      {{- end }}
-      {{- if (ne .maxCurrent "") }}
-        maxCurrent: {{ .maxCurrent }}
-      {{- end }}
-      {{- end }}
-      {{- if ne (len .identifiers) 0 }}
-      identifiers:
-      {{-   range .identifiers }}
-      - {{ . }}
-      {{-   end }}
-      {{- end }}
-      {{end}}
-  vehiclelanguage:
+        type: stringlist
+      - name: priority
+        advanced: true
+  vehicle-language:
     params:
       - name: language
-    render: |
-      {{define "vehicle-language"}}
-      language: {{ .language }}
-      {{end}}
-  eebusmeter:
+  eebus-meter:
     params:
       - name: ski
       - name: ip
-    render: |
-      {{define "eebus-meter"}}
-      type: eebus
-      ski: {{ .ski }}
-      {{ if ne .ip "" }}ip: {{ .ip }}{{ end }}
-      meter: true
-      {{end}}
-  eebusnometer:
+  eebus-no-meter:
     params:
       - name: ski
       - name: ip
-    render: |
-      {{define "eebus-no-meter"}}
-      type: eebus
-      ski: {{ .ski }}
-      {{ if ne .ip "" }}ip: {{ .ip }}{{ end }}
-      {{end}}
+  switchsocket:
+    params:
+      - name: standbypower
+        default: 15
+      - name: integrateddevice
+        type: bool
+        advanced: true
+        description:
+          de: Integriertes Gerät (keine Fahrzeugverbindung)
+          en: Integrated device (no vehicle connection)
+      - name: icon
+        advanced: true
 
 modbus:
   interfaces:

@@ -14,6 +14,7 @@ import (
 	"github.com/evcc-io/evcc/core/db"
 	"github.com/evcc-io/evcc/core/loadpoint"
 	"github.com/evcc-io/evcc/core/planner"
+	"github.com/evcc-io/evcc/core/prioritizer"
 	"github.com/evcc-io/evcc/push"
 	serverdb "github.com/evcc-io/evcc/server/db"
 	"github.com/evcc-io/evcc/tariff"
@@ -25,6 +26,7 @@ const standbyPower = 10 // consider less than 10W as charger in standby
 
 // Updater abstracts the Loadpoint implementation for testing
 type Updater interface {
+	loadpoint.API
 	Update(availablePower float64, batteryBuffered bool)
 }
 
@@ -63,10 +65,12 @@ type Site struct {
 	gridMeter     api.Meter   // Grid usage meter
 	pvMeters      []api.Meter // PV generation meters
 	batteryMeters []api.Meter // Battery charging meters
+	auxMeters     []api.Meter // Auxiliary meters
 
 	tariffs     tariff.Tariffs           // Tariff
 	loadpoints  []*Loadpoint             // Loadpoints
 	coordinator *coordinator.Coordinator // Vehicles
+	prioritizer *prioritizer.Prioritizer // Power budgets
 	savings     *Savings                 // Savings
 
 	// cached state
@@ -81,11 +85,12 @@ type Site struct {
 
 // MetersConfig contains the loadpoint's meter configuration
 type MetersConfig struct {
-	GridMeterRef     string   `mapstructure:"grid"`      // Grid usage meter
-	PVMeterRef       string   `mapstructure:"pv"`        // PV meter
-	PVMetersRef      []string `mapstructure:"pvs"`       // Multiple PV meters
-	BatteryMeterRef  string   `mapstructure:"battery"`   // Battery charging meter
-	BatteryMetersRef []string `mapstructure:"batteries"` // Multiple Battery charging meters
+	GridMeterRef      string   `mapstructure:"grid"`      // Grid usage meter
+	PVMetersRef       []string `mapstructure:"pv"`        // PV meter
+	PVMetersRef_      []string `mapstructure:"pvs"`       // TODO deprecated
+	BatteryMetersRef  []string `mapstructure:"battery"`   // Battery charging meter
+	BatteryMetersRef_ []string `mapstructure:"batteries"` // TODO deprecated
+	AuxMetersRef      []string `mapstructure:"aux"`       // Auxiliary meters
 }
 
 // NewSiteFromConfig creates a new site
@@ -106,22 +111,8 @@ func NewSiteFromConfig(
 	site.loadpoints = loadpoints
 	site.tariffs = tariffs
 	site.coordinator = coordinator.New(log, vehicles)
+	site.prioritizer = prioritizer.New()
 	site.savings = NewSavings(tariffs)
-
-	// migrate session log
-	if serverdb.Instance != nil {
-		var err error
-		// TODO deprecate
-		if table := "transactions"; serverdb.Instance.Migrator().HasTable(table) {
-			err = serverdb.Instance.Migrator().RenameTable(table, new(db.Session))
-		}
-		if err == nil {
-			err = serverdb.Instance.AutoMigrate(new(db.Session))
-		}
-		if err != nil {
-			return nil, err
-		}
-	}
 
 	// upload telemetry on shutdown
 	if telemetry.Enabled() {
@@ -157,7 +148,7 @@ func NewSiteFromConfig(
 	}
 
 	// multiple pv
-	for _, ref := range site.Meters.PVMetersRef {
+	for _, ref := range append(site.Meters.PVMetersRef, site.Meters.PVMetersRef_...) {
 		pv, err := cp.Meter(ref)
 		if err != nil {
 			return nil, err
@@ -165,20 +156,8 @@ func NewSiteFromConfig(
 		site.pvMeters = append(site.pvMeters, pv)
 	}
 
-	// single pv
-	if site.Meters.PVMeterRef != "" {
-		if len(site.pvMeters) > 0 {
-			return nil, errors.New("cannot have pv and pvs both")
-		}
-		pv, err := cp.Meter(site.Meters.PVMeterRef)
-		if err != nil {
-			return nil, err
-		}
-		site.pvMeters = append(site.pvMeters, pv)
-	}
-
 	// multiple batteries
-	for _, ref := range site.Meters.BatteryMetersRef {
+	for _, ref := range append(site.Meters.BatteryMetersRef, site.Meters.BatteryMetersRef_...) {
 		battery, err := cp.Meter(ref)
 		if err != nil {
 			return nil, err
@@ -186,16 +165,13 @@ func NewSiteFromConfig(
 		site.batteryMeters = append(site.batteryMeters, battery)
 	}
 
-	// single battery
-	if site.Meters.BatteryMeterRef != "" {
-		if len(site.batteryMeters) > 0 {
-			return nil, errors.New("cannot have battery and batteries both")
-		}
-		battery, err := cp.Meter(site.Meters.BatteryMeterRef)
+	// auxiliary meters
+	for _, ref := range site.Meters.AuxMetersRef {
+		meter, err := cp.Meter(ref)
 		if err != nil {
 			return nil, err
 		}
-		site.batteryMeters = append(site.batteryMeters, battery)
+		site.auxMeters = append(site.auxMeters, meter)
 	}
 
 	// configure meter from references
@@ -513,7 +489,7 @@ func (site *Site) updateMeters() error {
 
 // sitePower returns the net power exported by the site minus a residual margin.
 // negative values mean grid: export, battery: charging
-func (site *Site) sitePower(totalChargePower float64) (float64, error) {
+func (site *Site) sitePower(totalChargePower, flexiblePower float64) (float64, error) {
 	if err := site.updateMeters(); err != nil {
 		return 0, err
 	}
@@ -551,6 +527,25 @@ func (site *Site) sitePower(totalChargePower float64) (float64, error) {
 	}
 
 	sitePower := sitePower(site.log, site.MaxGridSupplyWhileBatteryCharging, site.gridPower, batteryPower, site.ResidualPower)
+
+	// deduct smart loads
+	var auxPower float64
+	for i, meter := range site.auxMeters {
+		if power, err := meter.CurrentPower(); err != nil {
+			site.log.ERROR.Printf("aux meter %d: %v", i, err)
+		} else {
+			auxPower += power
+			site.log.DEBUG.Printf("aux power %d: %.0fW", i, power)
+		}
+	}
+	site.publish("auxPower", auxPower)
+	sitePower -= auxPower
+
+	// handle priority
+	if flexiblePower > 0 {
+		site.log.DEBUG.Printf("giving loadpoint priority for additional: %.0fW", flexiblePower)
+		sitePower -= flexiblePower
+	}
 
 	site.log.DEBUG.Printf("site power: %.0fW", sitePower)
 
@@ -624,9 +619,17 @@ func (site *Site) update(lp Updater) {
 	for _, lp := range site.loadpoints {
 		lp.UpdateChargePower()
 		totalChargePower += lp.GetChargePower()
+
+		site.prioritizer.UpdateChargePowerFlexibility(lp)
 	}
 
-	if sitePower, err := site.sitePower(totalChargePower); err == nil {
+	// prioritize if possible
+	var flexiblePower float64
+	if lp.GetMode() == api.ModePV {
+		flexiblePower = site.prioritizer.GetChargePowerFlexibility(lp)
+	}
+
+	if sitePower, err := site.sitePower(totalChargePower, flexiblePower); err == nil {
 		lp.Update(sitePower, site.batteryBuffered)
 
 		// ignore negative pvPower values as that means it is not an energy source but consumption

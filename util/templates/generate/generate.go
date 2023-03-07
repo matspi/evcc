@@ -13,6 +13,7 @@ import (
 )
 
 const (
+	language    = "de"
 	docsPath    = "../../../templates/docs"
 	websitePath = "../../../templates/evcc.io"
 )
@@ -49,7 +50,7 @@ func generateClass(class templates.Class) error {
 		}
 
 		for index, product := range tmpl.Products {
-			fmt.Println(tmpl.Template + ": " + product.Title(tmpl.Lang))
+			fmt.Println(tmpl.Template + ": " + product.Title(language))
 
 			if err := writeTemplate(class, index, product, tmpl); err != nil {
 				return err
@@ -65,7 +66,7 @@ func writeTemplate(class templates.Class, index int, product templates.Product, 
 
 	b, err := tmpl.RenderDocumentation(product, values, "de")
 	if err == nil {
-		filename := fmt.Sprintf("%s/%s/%s_%d.yaml", docsPath, class, tmpl.Template, index)
+		filename := fmt.Sprintf("%s/%s/%s_%d.yaml", docsPath, strings.ToLower(class.String()), tmpl.Template, index)
 		err = os.WriteFile(filename, b, 0o644)
 	}
 
